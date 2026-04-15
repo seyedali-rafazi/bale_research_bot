@@ -8,9 +8,9 @@ load_dotenv()
 API_ID = os.getenv("API_ID")
 API_HASH =  os.getenv("API_HASH")
 SESSION_NAME =  os.getenv("SESSION_NAME")
+SCIHUB_BOT_USERNAME = os.getenv("SCIHUB_BOT_USERNAME")
 
 # آیدی ربات سای‌هاب در تلگرام (می‌توانید ربات‌های جایگزین هم تست کنید)
-SCIHUB_BOT_USERNAME = '@scihubot'
 
 async def download_pdf_via_telegram(doi: str) -> str:
     """
