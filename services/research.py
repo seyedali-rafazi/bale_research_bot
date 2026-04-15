@@ -3,11 +3,10 @@ from bs4 import BeautifulSoup
 import re
 import urllib3
 
-# غیرفعال کردن هشدارهای مربوط به خطای SSL سای‌هاب که باعث قطع شدن پایتون می‌شود
+# غیرفعال کردن هشدارهای مربوط به خطای SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def clean_doi(text):
-    # استخراج هوشمند DOI حتی اگر کاربر لینک کامل یا متن اضافی فرستاده باشد
     match = re.search(r'(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)', text)
     if match:
         return match.group(1)
@@ -55,7 +54,6 @@ def search_article_by_doi(doi_input):
             item = res.json().get('message', {})
             return process_crossref_items([item])
         else:
-            # اگر دیتابیس رسمی اطلاعات را نداشت، یک آیتم پیش‌فرض می‌سازیم تا ربات مستقیما سراغ سای‌هاب برود
             return [{
                 'title': 'عنوان نامشخص (آماده برای تلاش دانلود از سرور)',
                 'doi': doi,
@@ -75,7 +73,13 @@ def search_article_by_doi(doi_input):
 
 def get_scihub_pdf_url(doi_input):
     doi = clean_doi(doi_input)
-    base_urls = ['https://sci-hub.se/', 'https://sci-hub.ru/', 'https://sci-hub.st/']
+    # دامنه ای که باز میشود در اولویت اول قرار گرفت
+    base_urls = [
+        'https://sci-hub.ist/', 
+        'https://sci-hub.se/', 
+        'https://sci-hub.ru/', 
+        'https://sci-hub.st/'
+    ]
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
@@ -84,20 +88,17 @@ def get_scihub_pdf_url(doi_input):
     for base in base_urls:
         try:
             target_url = f"{base}{doi}"
-            # verify=False برای دور زدن خطای گواهینامه SSL سای‌هاب
             res = requests.get(target_url, headers=headers, timeout=15, verify=False)
             
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 pdf_url = None
                 
-                # جستجوی تگ با آیدی pdf (مطمئن‌ترین راه در سای‌هاب)
                 pdf_tag = soup.find(id='pdf')
                 if pdf_tag and pdf_tag.get('src'):
                     pdf_url = pdf_tag['src']
                 
                 if not pdf_url:
-                    # جستجوی جایگزین در صورت تغییر قالب سایت
                     button_tag = soup.find('button', onclick=re.compile(r"location\.href"))
                     if button_tag:
                         match = re.search(r"location\.href='(.*?)'", button_tag['onclick'])
@@ -121,10 +122,8 @@ def download_pdf(url, filename):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
             'Accept': '*/*'
         }
-        # verify=False برای دانلود موفق فایل
         res = requests.get(url, headers=headers, timeout=30, verify=False)
         
-        # بررسی وضعیت و حجم فایل (برای جلوگیری از دانلود صفحه خطا به جای PDF)
         if res.status_code == 200 and len(res.content) > 10000:
             filepath = f"{filename}.pdf"
             with open(filepath, 'wb') as f:
