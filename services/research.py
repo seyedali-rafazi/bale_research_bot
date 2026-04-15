@@ -75,6 +75,7 @@ def get_scihub_pdf_url(doi_input):
     doi = clean_doi(doi_input)
     base_urls = [
         'https://sci-hub.ist/', 
+        'https://sci-hub.se/', 
         'https://sci-hub.ru/', 
         'https://sci-hub.st/'
     ]
@@ -92,18 +93,15 @@ def get_scihub_pdf_url(doi_input):
                 soup = BeautifulSoup(res.text, 'html.parser')
                 pdf_url = None
                 
-                # روش 1: بررسی تگ embed (مثل چیزی که شما پیدا کردید)
                 embed_tag = soup.find('embed')
                 if embed_tag:
                     pdf_url = embed_tag.get('src') or embed_tag.get('original-url')
                 
-                # روش 2: بررسی تگ iframe
                 if not pdf_url:
                     iframe_tag = soup.find('iframe', id='pdf')
                     if iframe_tag:
                         pdf_url = iframe_tag.get('src')
                         
-                # روش 3: بررسی دکمه دانلود
                 if not pdf_url:
                     button_tag = soup.find('button', onclick=re.compile(r"location\.href"))
                     if button_tag:
@@ -111,16 +109,13 @@ def get_scihub_pdf_url(doi_input):
                         if match:
                             pdf_url = match.group(1)
                             
-                # روش 4: جستجوی مستقیم در متن HTML برای لینک های شامل .pdf
                 if not pdf_url:
                     match = re.search(r"(//[^\s\"']+\.pdf)", res.text)
                     if match:
                         pdf_url = match.group(1)
 
-                # پاکسازی و ساخت لینک نهایی
                 if pdf_url:
-                    pdf_url = pdf_url.split('#')[0] # حذف پارامترهای اضافی مثل #navpanes
-                    
+                    pdf_url = pdf_url.split('#')[0]
                     if pdf_url.startswith('//'):
                         return 'https:' + pdf_url
                     elif pdf_url.startswith('/'):
@@ -128,6 +123,11 @@ def get_scihub_pdf_url(doi_input):
                     elif not pdf_url.startswith('http'):
                         return base.rstrip('/') + '/' + pdf_url
                     return pdf_url
+                else:
+                    # اگر متصل شد اما لینک را پیدا نکرد، HTML دریافتی را چاپ میکنیم تا ببینیم سایت چه چیزی فرستاده
+                    print(f"--- HTML Received from {base} (First 500 chars) ---")
+                    print(res.text[:500])
+                    print("---------------------------------------------------")
                     
         except Exception as e:
             print(f"Sci-Hub Error on {base}: {e}")
