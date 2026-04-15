@@ -20,6 +20,26 @@ HEADERS = {
 # بخش اول: جستجوی مقالات (Crossref)
 # ==========================================
 
+def format_crossref_item(item):
+    """فرمت کردن دیتای خام کراس‌رف به شکل قابل خواندن برای ربات"""
+    # استخراج عنوان
+    title = item.get('title', ['بدون عنوان'])[0]
+    
+    # استخراج نویسندگان و تبدیل لیست به یک رشته متنی
+    authors_raw = item.get('author', [])
+    authors_list = [f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_raw]
+    authors = ", ".join(filter(None, authors_list))
+    if not authors:
+        authors = "نامشخص"
+        
+    return {
+        'title': title,
+        'authors': authors,
+        'publisher': item.get('publisher', 'نامشخص'),
+        'doi': item.get('DOI', 'ندارد'),
+        'url': item.get('URL', 'ندارد')
+    }
+
 def search_article_by_name(query):
     """جستجوی مقاله بر اساس نام از طریق API رایگان Crossref"""
     try:
@@ -27,7 +47,8 @@ def search_article_by_name(query):
         res = requests.get(url, timeout=15)
         if res.status_code == 200:
             data = res.json()
-            return data.get('message', {}).get('items', [])
+            items = data.get('message', {}).get('items', [])
+            return [format_crossref_item(item) for item in items]
     except Exception as e:
         print(f"Crossref Name Search Error: {e}")
     return []
@@ -41,7 +62,8 @@ def search_article_by_doi(doi):
         if res.status_code == 200:
             data = res.json()
             item = data.get('message', {})
-            return [item] if item else []
+            if item:
+                return [format_crossref_item(item)]
     except Exception as e:
         print(f"Crossref DOI Search Error: {e}")
     return []
@@ -51,11 +73,15 @@ def search_article_by_doi(doi):
 # ==========================================
 
 def clean_doi(doi_input):
+    """پاکسازی لینک‌های اضافی و استخراج شناسه خالص DOI"""
+    if not doi_input:
+        return ""
     doi = doi_input.strip()
     doi = re.sub(r'^(https?://)?(dx\.)?doi\.org/', '', doi)
     return doi
 
 def get_scihub_pdf_url(doi):
+    """تلاش برای پیدا کردن لینک PDF از سایت سای‌هاب"""
     scihub_urls = ['https://sci-hub.ist/', 'https://sci-hub.ru/', 'https://sci-hub.se/']
     for base in scihub_urls:
         try:
@@ -90,6 +116,7 @@ def get_scihub_pdf_url(doi):
     return None
 
 def get_libgen_pdf_url(doi):
+    """تلاش برای پیدا کردن لینک PDF از سایت لیب‌جن"""
     try:
         search_url = f"http://libgen.rs/scimag/?q={doi}"
         res = requests.get(search_url, headers=HEADERS, proxies=PROXIES, timeout=15)
@@ -114,7 +141,9 @@ def get_libgen_pdf_url(doi):
 def download_pdf(doi_input):
     """تابع اصلی که تلگرام برای دریافت لینک دانلود صدا می‌زند"""
     doi = clean_doi(doi_input)
-    
+    if not doi:
+        return None
+        
     # 1. اول تلاش از طریق سای هاب
     pdf_url = get_scihub_pdf_url(doi)
     if pdf_url:
