@@ -1,12 +1,10 @@
-# handlers/states.py
-
 import os
 import asyncio
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
 from core.state_manager import get_state, set_state
 from core.constants import *
-from services.research import search_article_by_name, search_article_by_doi, get_scihub_pdf_url, download_pdf
+from services.research import search_article_by_name, search_article_by_doi, download_pdf_via_telegram
 
 async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -40,8 +38,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                          f"🏢 ناشر: {art['publisher']}\n"
                          f"🔗 DOI: `{art['doi']}`\n")
                          
-            # اگر مقاله DOI معتبر داشته باشد، دکمه دانلود را اضافه می‌کنیم
-            if art['doi'] != 'No DOI':
+            if art['doi'] != 'No DOI' and art['doi'] != 'ندارد':
                 download_buttons.append(KeyboardButton(f"📥 دانلود مقاله {i}"))
             else:
                 res_text += "❌ فاقد شناسه DOI برای دانلود.\n"
@@ -63,35 +60,28 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                 selected_art = articles[index]
                 doi = selected_art.get('doi')
                 
-                if not doi or doi == 'No DOI':
+                if not doi or doi in ['No DOI', 'ندارد']:
                     await update.message.reply_text("❌ این مقاله فاقد شناسه DOI است و قابل دانلود نیست.")
                     return
                     
-                await update.message.reply_text(f"⏳ در حال جستجوی فایل PDF در سرورها (دور زدن تحریم)...\nممکن است ۳۰ ثانیه طول بکشد.")
+                await update.message.reply_text(f"⏳ در حال ارتباط با ربات مرجع برای دریافت فایل...\nلطفاً چند ثانیه منتظر بمانید.")
                 
-                # پیدا کردن لینک دانلود از طریق Sci-Hub
-                pdf_url = await asyncio.to_thread(get_scihub_pdf_url, doi)
-                
-                if not pdf_url:
-                    await update.message.reply_text("❌ متأسفانه فایل PDF این مقاله در دیتابیس‌های در دسترس یافت نشد.")
-                    return
-                    
-                await update.message.reply_text("✅ لینک دانلود پیدا شد. در حال دریافت فایل...")
-                
-                safe_name = f"article_{chat_id}_{index}"
-                file_path = await asyncio.to_thread(download_pdf, pdf_url, safe_name)
+                # استفاده از متد جدید Telethon
+                file_path = await download_pdf_via_telegram(doi)
                 
                 if file_path and os.path.exists(file_path):
-                    await update.message.reply_text("✅ در حال آپلود فایل در تلگرام...")
+                    await update.message.reply_text("✅ فایل دریافت شد. در حال ارسال برای شما...")
                     try:
                         with open(file_path, 'rb') as doc:
                             caption = f"📄 {selected_art['title']}\n🔗 DOI: {doi}"
                             await context.bot.send_document(chat_id=chat_id, document=doc, caption=caption)
                     finally:
-                        if os.path.exists(file_path): os.remove(file_path) 
+                        if os.path.exists(file_path): 
+                            os.remove(file_path) 
                 else:
-                    await update.message.reply_text("❌ خطا در دانلود فایل PDF.")
+                    await update.message.reply_text("❌ متأسفانه ربات مرجع نتوانست فایل PDF این مقاله را پیدا کند.")
             except Exception as e:
+                print(f"Error in download state: {e}")
                 await update.message.reply_text("❌ انتخاب نامعتبر است یا خطایی رخ داد.")
         return
         
