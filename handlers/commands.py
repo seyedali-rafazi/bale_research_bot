@@ -11,9 +11,6 @@ from core.database import add_user
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     username = update.effective_chat.username
-
-    print("My ID is:", chat_id) # این خط را اضافه کنید
-    print("Username:", username) # این خط را اضافه کنید
     
     # ثبت کاربر در دیتابیس (اگر قبلا نباشد اضافه میشود)
     add_user(chat_id, username)
