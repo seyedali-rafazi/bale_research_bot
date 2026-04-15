@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv() 
 
 API_ID = os.getenv("API_ID")
-API_HASH =  os.getenv("eb06d4abfb49dc3eeb1aeb98ae0f581e")
+API_HASH =  os.getenv("API_HASH")
 SESSION_NAME =  os.getenv("my_bale_bot_session")
 
 # آیدی ربات سای‌هاب در تلگرام (می‌توانید ربات‌های جایگزین هم تست کنید)
