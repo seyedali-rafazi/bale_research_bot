@@ -1,95 +1,40 @@
+import os
 import requests
 from bs4 import BeautifulSoup
 import re
-import urllib3
 
-# غیرفعال کردن هشدارهای مربوط به خطای SSL
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# دریافت پروکسی از فایل env یا استفاده از مقدار پیش‌فرض شما
+PROXY_URL = os.getenv('PROXY', 'socks5://127.0.0.1:40000')
+PROXIES = {
+    'http': PROXY_URL,
+    'https': PROXY_URL
+}
 
-def clean_doi(text):
-    match = re.search(r'(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)', text)
-    if match:
-        return match.group(1)
-    return text.strip()
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+}
 
-def process_crossref_items(items):
-    results = []
-    for item in items:
-        title = item.get('title', ['بدون عنوان'])[0]
-        doi = item.get('DOI', 'No DOI')
-        url = item.get('URL', '')
-        publisher = item.get('publisher', 'ناشر نامشخص')
-        
-        authors_list = item.get('author', [])
-        authors = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors_list[:3]])
-        if len(authors_list) > 3:
-            authors += " et al."
-                
-        results.append({
-            'title': title,
-            'doi': doi,
-            'authors': authors if authors else "نامشخص",
-            'publisher': publisher,
-            'url': url
-        })
-    return results
+def clean_doi(doi_input):
+    """پاک‌سازی و استخراج DOI خالص از لینک یا متن"""
+    doi = doi_input.strip()
+    doi = re.sub(r'^(https?://)?(dx\.)?doi\.org/', '', doi)
+    return doi
 
-def search_article_by_name(query):
-    url = f"https://api.crossref.org/works?query.title={query}&rows=5&select=DOI,title,author,URL,publisher"
-    try:
-        res = requests.get(url, timeout=10)
-        data = res.json()
-        items = data.get('message', {}).get('items', [])
-        return process_crossref_items(items)
-    except Exception as e:
-        print(f"Crossref Name Error: {e}")
-        return []
-
-def search_article_by_doi(doi_input):
-    doi = clean_doi(doi_input)
-    url = f"https://api.crossref.org/works/{doi}"
-    try:
-        res = requests.get(url, timeout=10)
-        if res.status_code == 200:
-            item = res.json().get('message', {})
-            return process_crossref_items([item])
-        else:
-            return [{
-                'title': 'عنوان نامشخص (آماده برای تلاش دانلود از سرور)',
-                'doi': doi,
-                'authors': 'نامشخص',
-                'publisher': 'نامشخص',
-                'url': f'https://doi.org/{doi}'
-            }]
-    except Exception as e:
-        print(f"Crossref DOI Error: {e}")
-        return [{
-            'title': 'خطا در دریافت اطلاعات (آماده برای تلاش دانلود مستقیم)',
-            'doi': doi,
-            'authors': 'نامشخص',
-            'publisher': 'نامشخص',
-            'url': f'https://doi.org/{doi}'
-        }]
-
-def get_scihub_pdf_url(doi_input):
-    doi = clean_doi(doi_input)
-    base_urls = [
+def get_scihub_pdf_url(doi):
+    """تلاش برای دریافت لینک PDF از سای‌هاب با استفاده از پروکسی"""
+    scihub_urls = [
         'https://sci-hub.ist/', 
-        'https://sci-hub.se/', 
-        'https://sci-hub.ru/', 
-        'https://sci-hub.st/'
-    ]
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-    }
+        'https://sci-hub.ru/'   
+          ]
     
-    for base in base_urls:
+    for base in scihub_urls:
         try:
             target_url = f"{base}{doi}"
-            res = requests.get(target_url, headers=headers, timeout=15, verify=False)
+            # استفاده از پروکسی و غیرفعال کردن بررسی SSL
+            res = requests.get(target_url, headers=HEADERS, proxies=PROXIES, timeout=15, verify=False)
             
-            if res.status_code == 200:
+            # بررسی اینکه صفحه کپچا/ربات نباشد
+            if res.status_code == 200 and "проверка на робота" not in res.text:
                 soup = BeautifulSoup(res.text, 'html.parser')
                 pdf_url = None
                 
@@ -101,18 +46,6 @@ def get_scihub_pdf_url(doi_input):
                     iframe_tag = soup.find('iframe', id='pdf')
                     if iframe_tag:
                         pdf_url = iframe_tag.get('src')
-                        
-                if not pdf_url:
-                    button_tag = soup.find('button', onclick=re.compile(r"location\.href"))
-                    if button_tag:
-                        match = re.search(r"location\.href='(.*?)'", button_tag['onclick'])
-                        if match:
-                            pdf_url = match.group(1)
-                            
-                if not pdf_url:
-                    match = re.search(r"(//[^\s\"']+\.pdf)", res.text)
-                    if match:
-                        pdf_url = match.group(1)
 
                 if pdf_url:
                     pdf_url = pdf_url.split('#')[0]
@@ -123,31 +56,52 @@ def get_scihub_pdf_url(doi_input):
                     elif not pdf_url.startswith('http'):
                         return base.rstrip('/') + '/' + pdf_url
                     return pdf_url
-                else:
-                    # اگر متصل شد اما لینک را پیدا نکرد، HTML دریافتی را چاپ میکنیم تا ببینیم سایت چه چیزی فرستاده
-                    print(f"--- HTML Received from {base} (First 500 chars) ---")
-                    print(res.text[:500])
-                    print("---------------------------------------------------")
                     
         except Exception as e:
             print(f"Sci-Hub Error on {base}: {e}")
             continue
-            
+
     return None
 
-def download_pdf(url, filename):
+def get_libgen_pdf_url(doi):
+    """تلاش جایگزین برای دریافت لینک از Libgen"""
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-            'Accept': '*/*'
-        }
-        res = requests.get(url, headers=headers, timeout=30, verify=False)
-        
-        if res.status_code == 200 and len(res.content) > 10000:
-            filepath = f"{filename}.pdf"
-            with open(filepath, 'wb') as f:
-                f.write(res.content)
-            return filepath
+        search_url = f"http://libgen.rs/scimag/?q={doi}"
+        res = requests.get(search_url, headers=HEADERS, proxies=PROXIES, timeout=15)
+        if res.status_code == 200:
+            soup = BeautifulSoup(res.text, 'html.parser')
+            # پیدا کردن لینک‌های دانلود در جدول
+            links = soup.find_all('a', href=True)
+            for link in links:
+                if 'scimag/ads.php?doi=' in link['href']:
+                    download_page_url = link['href']
+                    if not download_page_url.startswith('http'):
+                        download_page_url = f"http://libgen.rs{download_page_url}"
+                    
+                    # رفتن به صفحه دانلود
+                    res_dl = requests.get(download_page_url, headers=HEADERS, proxies=PROXIES, timeout=15)
+                    soup_dl = BeautifulSoup(res_dl.text, 'html.parser')
+                    
+                    # پیدا کردن لینک نهایی PDF (معمولا در تگ a با متن GET یا لینک مستقیم)
+                    main_link = soup_dl.find('a', string='GET')
+                    if main_link and main_link.get('href'):
+                        return main_link.get('href')
     except Exception as e:
-        print(f"Download Error: {e}")
+        print(f"Libgen Error: {e}")
+        
     return None
+
+def get_article_download_url(doi_input):
+    """تابع اصلی که ابتدا سای‌هاب و سپس لیب‌جن را چک می‌کند"""
+    doi = clean_doi(doi_input)
+    
+    # 1. اول تلاش از طریق سای هاب
+    pdf_url = get_scihub_pdf_url(doi)
+    if pdf_url:
+        return pdf_url
+        
+    # 2. اگر سای هاب جواب نداد یا کپچا داد، تلاش از طریق لیب جن
+    print("Sci-Hub failed or returned captcha. Trying Libgen...")
+    pdf_url = get_libgen_pdf_url(doi)
+    
+    return pdf_url
