@@ -75,10 +75,7 @@ def get_scihub_pdf_url(doi_input):
     doi = clean_doi(doi_input)
     # دامنه ای که باز میشود در اولویت اول قرار گرفت
     base_urls = [
-        'https://sci-hub.ist/', 
-        'https://sci-hub.se/', 
-        'https://sci-hub.ru/', 
-        'https://sci-hub.st/'
+        'https://sci-hub.ist/'
     ]
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
