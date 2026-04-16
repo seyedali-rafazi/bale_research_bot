@@ -4,7 +4,7 @@ import os
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
 from core.state_manager import get_state, set_state
-from core.keyboards import get_citation_format_keyboard, get_main_menu_keyboard
+from core.keyboards import get_citation_format_keyboard, get_main_menu_keyboard, get_year_filter_keyboard
 from core.constants import *
 from core.database import is_vip, get_user_usage_today, log_usage, increment_citation_count
 from services.research import (
@@ -15,18 +15,30 @@ from services.research import (
     get_article_data_for_citation
 )
 
-async def show_article_results(update: Update, chat_id: str, articles: list):
-    text_res = "✅ نتایج یافت شده (مرتب شده بر اساس استناد):\n\n"
+async def show_article_results(update: Update, chat_id: str, articles: list, query: str = None, page: int = 1, min_year: int = None):
+    text_res = f"✅ نتایج یافت شده (صفحه $ {page} $):\n\n"
     keyboard = []
+    
     for i, art in enumerate(articles):
         oa_status = "🔓 فایل رایگان موجود" if art.get('oa_url') else "🔒 نیاز به سای‌هاب"
         text_res += f"{i+1}. {art.get('title')} ({art.get('year')})\n👤 {art.get('authors')}\n🔗 DOI: {art.get('doi')}\n📈 استنادات: $ {art.get('citations')} $ | {oa_status}\n\n"
         keyboard.append([KeyboardButton(f"📥 دانلود مقاله {i+1}")])
     
+    # دکمه‌های صفحه‌بندی
+    nav_buttons = []
+    if page > 1:
+        nav_buttons.append(KeyboardButton(BTN_PREV_PAGE))
+    if len(articles) == 5: # اگر ۵ تا نتیجه برگشته، یعنی صفحه بعدی هم احتمالا هست
+        nav_buttons.append(KeyboardButton(BTN_NEXT_PAGE))
+        
+    if nav_buttons:
+        keyboard.append(nav_buttons)
+        
     keyboard.append([KeyboardButton(BTN_BACK)])
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
-    set_state(chat_id, 'waiting_article_selection', articles=articles)
+    # ذخیره متغیرها در state برای استفاده در صفحات بعد
+    set_state(chat_id, 'waiting_article_selection', articles=articles, query=query, page=page, min_year=min_year)
     await update.message.reply_text(text_res, reply_markup=reply_markup)
 
 
@@ -50,11 +62,9 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text("✅ پیام شما با موفقیت برای تیم پشتیبانی ارسال شد.")
             from .commands import cmd_start
             await cmd_start(update, context)
-        else:
-            await update.message.reply_text("❌ خطای سیستمی: آیدی ادمین تنظیم نشده است.")
         return
     
-    # ====== 1. پردازش دریافت DOI برای مقالات ======
+    # ====== 1. پردازش دریافت DOI ======
     if step == 'waiting_article_doi':
         await update.message.reply_text("⏳ در حال بررسی شناسه DOI...")
         articles = search_article_by_doi(text)
@@ -64,18 +74,58 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         await show_article_results(update, chat_id, articles)
         return
 
-    # ====== 2. پردازش دریافت نام مقاله ======
+    # ====== 2. پردازش دریافت نام مقاله و پرسش سال ======
     if step == 'waiting_article_name':
+        set_state(chat_id, 'waiting_article_year', query=text)
+        await update.message.reply_text(
+            "📅 آیا می‌خواهید جستجو محدود به سال خاصی باشد؟", 
+            reply_markup=get_year_filter_keyboard()
+        )
+        return
+
+    # ====== 3. دریافت سال و انجام جستجو ======
+    if step == 'waiting_article_year':
+        query = state_data.get('query')
+        min_year = None
+        
+        if text == BTN_YEAR_2024: min_year = 2024
+        elif text == BTN_YEAR_2020: min_year = 2020
+        elif text == BTN_YEAR_2015: min_year = 2015
+
         await update.message.reply_text("⏳ در حال جستجوی مقالات...")
-        articles = search_article_by_name(text, limit=5)
+        articles = search_article_by_name(query, page=1, min_year=min_year)
         if not articles:
             await update.message.reply_text("❌ مقاله‌ای یافت نشد.")
             return
-        await show_article_results(update, chat_id, articles)
+        await show_article_results(update, chat_id, articles, query=query, page=1, min_year=min_year)
         return
 
-    # ====== 3. پردازش انتخاب و دانلود مقاله ======
+    # ====== 4. پردازش انتخاب مقاله یا تغییر صفحه ======
     if step == 'waiting_article_selection':
+        query = state_data.get('query')
+        page = state_data.get('page', 1)
+        min_year = state_data.get('min_year')
+        
+        # مدیریت دکمه‌های صفحه بعد و قبل
+        if text == BTN_NEXT_PAGE:
+            page += 1
+            await update.message.reply_text(f"⏳ در حال دریافت صفحه $ {page} $...")
+            articles = search_article_by_name(query, page=page, min_year=min_year)
+            if not articles:
+                await update.message.reply_text("❌ نتیجه دیگری یافت نشد.")
+                return
+            await show_article_results(update, chat_id, articles, query, page, min_year)
+            return
+            
+        elif text == BTN_PREV_PAGE:
+            if page > 1:
+                page -= 1
+                await update.message.reply_text(f"⏳ در حال دریافت صفحه $ {page} $...")
+                articles = search_article_by_name(query, page=page, min_year=min_year)
+                await show_article_results(update, chat_id, articles, query, page, min_year)
+            return
+
+        # مدیریت دانلود
         if text.startswith("📥 دانلود مقاله "):
             try:
                 user_is_vip = is_vip(chat_id)
@@ -83,9 +133,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                 usage_today = get_user_usage_today(chat_id, "download_article")
                 
                 if usage_today >= daily_limit:
-                    await update.message.reply_text(
-                        f"❌ شما به سقف مجاز دانلود روزانه خود ($ {daily_limit} $ مقاله) رسیده‌اید."
-                    )
+                    await update.message.reply_text(f"❌ شما به سقف مجاز دانلود روزانه خود ($ {daily_limit} $ مقاله) رسیده‌اید.")
                     return
 
                 index = int(text.replace("📥 دانلود مقاله ", "").strip()) - 1
@@ -102,12 +150,9 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                 await update.message.reply_text(f"⏳ در حال دریافت فایل... لطفاً منتظر بمانید.")
                 
                 file_path = None
-                
-                # اولویت با لینک رایگان (Open Access)
                 if oa_url:
                     file_path = await download_direct_pdf(oa_url, doi if (doi and doi != 'ندارد') else f"article_{index}")
                 
-                # اگر رایگان نبود یا دانلود مستقیم شکست خورد، از سای‌هاب تلاش می‌کنیم
                 if not file_path and doi and doi != 'ندارد':
                     file_path = await download_pdf_via_telegram(doi)
                 
@@ -117,21 +162,17 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                         with open(file_path, 'rb') as doc:
                             caption = f"📄 {selected_art.get('title', 'مقاله')}\n🔗 DOI: {doi}"
                             await context.bot.send_document(chat_id=chat_id, document=doc, caption=caption)
-                            
                         log_usage(chat_id, "download_article")
                     finally:
                         if os.path.exists(file_path): 
                             os.remove(file_path) 
                 else:
-                    await update.message.reply_text("❌ متأسفانه فایل PDF این مقاله در منابع باز و سای‌هاب یافت نشد.")
+                    await update.message.reply_text("❌ متأسفانه فایل PDF این مقاله یافت نشد.")
             except ValueError:
                  await update.message.reply_text("❌ فرمت دستور اشتباه است.")
-            except Exception as e:
-                print(f"Error in download state: {e}")
-                await update.message.reply_text("❌ خطایی رخ داد.")
         return
 
-    # ====== 4. پردازش دریافت DOI برای تولید رفرنس ======
+    # ====== 5. تولید رفرنس ======
     if step == 'waiting_for_citation_doi':
         doi_input = text.strip()
         await update.message.reply_text("⏳ در حال دریافت اطلاعات مقاله...")
@@ -149,7 +190,6 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    # ====== 5. پردازش انتخاب فرمت و ساخت رفرنس ======
     if step == 'waiting_for_citation_format':
         article = state_data.get('article')
         if not article:

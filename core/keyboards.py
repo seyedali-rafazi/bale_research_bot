@@ -20,11 +20,20 @@ def get_article_menu_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# کیبورد جدید برای انتخاب فرمت رفرنس
 def get_citation_format_keyboard():
     keyboard = [
         [KeyboardButton(BTN_APA), KeyboardButton(BTN_IEEE)],
         [KeyboardButton(BTN_HARVARD)],
+        [KeyboardButton(BTN_BACK)]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+# کیبورد جدید برای انتخاب سال
+def get_year_filter_keyboard():
+    keyboard = [
+        [KeyboardButton(BTN_YEAR_ALL)],
+        [KeyboardButton(BTN_YEAR_2024), KeyboardButton(BTN_YEAR_2020)],
+        [KeyboardButton(BTN_YEAR_2015)],
         [KeyboardButton(BTN_BACK)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)

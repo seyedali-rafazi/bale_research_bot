@@ -13,3 +13,12 @@ BTN_CITATION = "📑 تولید رفرنس"
 BTN_APA = "فرمت APA"
 BTN_IEEE = "فرمت IEEE"
 BTN_HARVARD = "فرمت Harvard"
+
+# دکمه‌های جدید برای فیلتر سال و صفحه‌بندی
+BTN_YEAR_ALL = "همه سال‌ها 🌍"
+BTN_YEAR_2024 = "از 2024 به بعد 📅"
+BTN_YEAR_2020 = "از 2020 به بعد 📅"
+BTN_YEAR_2015 = "از 2015 به بعد 📅"
+
+BTN_NEXT_PAGE = "صفحه بعد ➡️"
+BTN_PREV_PAGE = "⬅️ صفحه قبل"
