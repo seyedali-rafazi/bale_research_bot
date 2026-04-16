@@ -1,7 +1,6 @@
-#handlers/states.py
+# handlers/states.py
 
 import os
-import asyncio
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
 from core.state_manager import get_state, set_state
@@ -9,17 +8,19 @@ from core.keyboards import get_citation_format_keyboard, get_main_menu_keyboard
 from core.constants import *
 from core.database import is_vip, get_user_usage_today, log_usage, increment_citation_count
 from services.research import (
-    download_pdf_via_telegram, 
+    download_pdf_via_telegram,
+    download_direct_pdf,
     search_article_by_doi, 
     search_article_by_name,
     get_article_data_for_citation
 )
 
 async def show_article_results(update: Update, chat_id: str, articles: list):
-    text_res = "✅ نتایج یافت شده:\n\n"
+    text_res = "✅ نتایج یافت شده (مرتب شده بر اساس استناد):\n\n"
     keyboard = []
     for i, art in enumerate(articles):
-        text_res += f"{i+1}. {art.get('title')} ({art.get('year')})\n👤 {art.get('authors')}\n🔗 DOI: {art.get('doi')}\n\n"
+        oa_status = "🔓 فایل رایگان موجود" if art.get('oa_url') else "🔒 نیاز به سای‌هاب"
+        text_res += f"{i+1}. {art.get('title')} ({art.get('year')})\n👤 {art.get('authors')}\n🔗 DOI: {art.get('doi')}\n📈 استنادات: $ {art.get('citations')} $ | {oa_status}\n\n"
         keyboard.append([KeyboardButton(f"📥 دانلود مقاله {i+1}")])
     
     keyboard.append([KeyboardButton(BTN_BACK)])
@@ -47,7 +48,6 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             msg_to_admin = f"📩 **پیام جدید از پشتیبانی**\n\n👤 آیدی کاربر: `{chat_id}`\n\nمتن پیام:\n{text}"
             await context.bot.send_message(chat_id=admin_id, text=msg_to_admin)
             await update.message.reply_text("✅ پیام شما با موفقیت برای تیم پشتیبانی ارسال شد.")
-            
             from .commands import cmd_start
             await cmd_start(update, context)
         else:
@@ -59,7 +59,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("⏳ در حال بررسی شناسه DOI...")
         articles = search_article_by_doi(text)
         if not articles:
-            await update.message.reply_text("❌ مقاله‌ای با این شناسه در دیتابیس CrossRef یافت نشد.")
+            await update.message.reply_text("❌ مقاله‌ای یافت نشد.")
             return
         await show_article_results(update, chat_id, articles)
         return
@@ -69,7 +69,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("⏳ در حال جستجوی مقالات...")
         articles = search_article_by_name(text, limit=5)
         if not articles:
-            await update.message.reply_text("❌ مقاله‌ای با این کلمات کلیدی یافت نشد.")
+            await update.message.reply_text("❌ مقاله‌ای یافت نشد.")
             return
         await show_article_results(update, chat_id, articles)
         return
@@ -84,8 +84,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                 
                 if usage_today >= daily_limit:
                     await update.message.reply_text(
-                        f"❌ شما به سقف مجاز دانلود روزانه خود ($ {daily_limit} $ مقاله) رسیده‌اید.\n"
-                        "لطفاً فردا مجدداً تلاش کنید."
+                        f"❌ شما به سقف مجاز دانلود روزانه خود ($ {daily_limit} $ مقاله) رسیده‌اید."
                     )
                     return
 
@@ -98,14 +97,19 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                     
                 selected_art = articles[index]
                 doi = selected_art.get('doi')
+                oa_url = selected_art.get('oa_url')
                 
-                if not doi or doi in ['No DOI', 'ندارد']:
-                    await update.message.reply_text("❌ این مقاله فاقد شناسه DOI است و قابل دانلود نیست.")
-                    return
-                    
-                await update.message.reply_text(f"⏳ در صف دریافت فایل...\nلطفاً تا حدود 10 ثانیه منتظر بمانید.")
+                await update.message.reply_text(f"⏳ در حال دریافت فایل... لطفاً منتظر بمانید.")
                 
-                file_path = await download_pdf_via_telegram(doi)
+                file_path = None
+                
+                # اولویت با لینک رایگان (Open Access)
+                if oa_url:
+                    file_path = await download_direct_pdf(oa_url, doi if (doi and doi != 'ندارد') else f"article_{index}")
+                
+                # اگر رایگان نبود یا دانلود مستقیم شکست خورد، از سای‌هاب تلاش می‌کنیم
+                if not file_path and doi and doi != 'ندارد':
+                    file_path = await download_pdf_via_telegram(doi)
                 
                 if file_path and os.path.exists(file_path):
                     await update.message.reply_text("✅ فایل دریافت شد. در حال ارسال برای شما...")
@@ -115,12 +119,11 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                             await context.bot.send_document(chat_id=chat_id, document=doc, caption=caption)
                             
                         log_usage(chat_id, "download_article")
-                        
                     finally:
                         if os.path.exists(file_path): 
                             os.remove(file_path) 
                 else:
-                    await update.message.reply_text("❌ متأسفانه ربات مرجع نتوانست فایل PDF این مقاله را پیدا کند.")
+                    await update.message.reply_text("❌ متأسفانه فایل PDF این مقاله در منابع باز و سای‌هاب یافت نشد.")
             except ValueError:
                  await update.message.reply_text("❌ فرمت دستور اشتباه است.")
             except Exception as e:
@@ -135,7 +138,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         article_data = get_article_data_for_citation(doi_input)
         if not article_data:
-            await update.message.reply_text("❌ مقاله‌ای با این DOI یافت نشد. لطفاً مجدداً بررسی کنید.")
+            await update.message.reply_text("❌ مقاله‌ای با این DOI یافت نشد.")
             return
             
         set_state(chat_id, 'waiting_for_citation_format', article=article_data)
@@ -150,7 +153,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
     if step == 'waiting_for_citation_format':
         article = state_data.get('article')
         if not article:
-            await update.message.reply_text("❌ خطا در بازیابی اطلاعات. لطفاً دوباره تلاش کنید.")
+            await update.message.reply_text("❌ خطا در بازیابی اطلاعات.")
             set_state(chat_id, None)
             return
 
@@ -172,11 +175,10 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text("❌ لطفاً فرمت را از گزینه‌های پایین انتخاب کنید.")
             return
 
-        # اضافه کردن به شمارنده دیتابیس
         increment_citation_count(chat_id)
 
         await update.message.reply_text(
-            f"📑 **رفرنس تولید شده ({text}):**\n\n`{citation_text}`\n\n*(برای کپی کردن، روی متن بالا کلیک کنید)*",
+            f"📑 **رفرنس تولید شده ({text}):**\n\n`{citation_text}`",
             parse_mode='Markdown',
             reply_markup=get_main_menu_keyboard()
         )

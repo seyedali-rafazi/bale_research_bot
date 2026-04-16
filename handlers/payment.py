@@ -1,7 +1,8 @@
+#handlers/payment.py
+
 from telegram import Update, LabeledPrice
 from telegram.ext import ContextTypes
 import datetime
-# ایمپورت کردن تابع جدید ثبت تراکنش به همراه تابع تنظیم VIP
 from core.database import set_vip_with_expiration, add_transaction 
 from dotenv import load_dotenv
 import os
