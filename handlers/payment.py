@@ -18,7 +18,7 @@ async def btn_buy_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     description = "ارتقا به حساب ویژه برای یک ماه"
     payload = f"vip_1month_{chat_id}"
     currency = "IRR" 
-    prices = [LabeledPrice("اشتراک 1 ماهه", PAYMENT_VALUE)] 
+    prices = [LabeledPrice("اشتراک 1 ماهه", int(PAYMENT_VALUE))] 
 
     await context.bot.send_invoice(
         chat_id=chat_id,
