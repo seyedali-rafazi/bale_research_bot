@@ -4,7 +4,7 @@ import os
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes
 from core.state_manager import get_state, set_state
-from core.keyboards import get_citation_format_keyboard, get_main_menu_keyboard, get_year_filter_keyboard
+from core.keyboards import get_citation_format_keyboard, get_main_menu_keyboard, get_year_filter_keyboard, get_sort_filter_keyboard
 from core.constants import *
 from core.database import is_vip, get_user_usage_today, log_usage, increment_citation_count
 from services.research import (
@@ -15,7 +15,8 @@ from services.research import (
     get_article_data_for_citation
 )
 
-async def show_article_results(update: Update, chat_id: str, articles: list, query: str = None, page: int = 1, min_year: int = None):
+
+async def show_article_results(update: Update, chat_id: str, articles: list, query: str = None, page: int = 1, min_year: int = None, sort_by: str = "relevance"):
     text_res = f"✅ نتایج یافت شده (صفحه $ {page} $):\n\n"
     keyboard = []
     
@@ -24,11 +25,10 @@ async def show_article_results(update: Update, chat_id: str, articles: list, que
         text_res += f"{i+1}. {art.get('title')} ({art.get('year')})\n👤 {art.get('authors')}\n🔗 DOI: {art.get('doi')}\n📈 استنادات: $ {art.get('citations')} $ | {oa_status}\n\n"
         keyboard.append([KeyboardButton(f"📥 دانلود مقاله {i+1}")])
     
-    # دکمه‌های صفحه‌بندی
     nav_buttons = []
     if page > 1:
         nav_buttons.append(KeyboardButton(BTN_PREV_PAGE))
-    if len(articles) == 5: # اگر ۵ تا نتیجه برگشته، یعنی صفحه بعدی هم احتمالا هست
+    if len(articles) == 5: 
         nav_buttons.append(KeyboardButton(BTN_NEXT_PAGE))
         
     if nav_buttons:
@@ -37,10 +37,9 @@ async def show_article_results(update: Update, chat_id: str, articles: list, que
     keyboard.append([KeyboardButton(BTN_BACK)])
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     
-    # ذخیره متغیرها در state برای استفاده در صفحات بعد
-    set_state(chat_id, 'waiting_article_selection', articles=articles, query=query, page=page, min_year=min_year)
+    # ذخیره تمام متغیرها برای صفحات بعد (از جمله نوع مرتب‌سازی)
+    set_state(chat_id, 'waiting_article_selection', articles=articles, query=query, page=page, min_year=min_year, sort_by=sort_by)
     await update.message.reply_text(text_res, reply_markup=reply_markup)
-
 
 async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
@@ -83,7 +82,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    # ====== 3. دریافت سال و انجام جستجو ======
+    # ====== 3. دریافت سال و پرسش درباره مرتب‌سازی ======
     if step == 'waiting_article_year':
         query = state_data.get('query')
         min_year = None
@@ -92,12 +91,32 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         elif text == BTN_YEAR_2020: min_year = 2020
         elif text == BTN_YEAR_2015: min_year = 2015
 
+        # رفتن به مرحله انتخاب نحوه مرتب‌سازی به جای جستجوی مستقیم
+        set_state(chat_id, 'waiting_article_sort', query=query, min_year=min_year)
+        await update.message.reply_text(
+            "🗂 نحوه نمایش نتایج را انتخاب کنید:\n\n"
+            "🎯 **مرتبط‌ترین:** مقالاتی که اسمشان دقیقاً مشابه متن شماست.\n"
+            "📈 **بیشترین استناد:** مقالات معروف‌تر و پایه در این حوزه.",
+            reply_markup=get_sort_filter_keyboard(),
+            parse_mode='Markdown'
+        )
+        return
+
+    # ====== 3.5. پردازش نوع مرتب‌سازی و انجام جستجو ======
+    if step == 'waiting_article_sort':
+        query = state_data.get('query')
+        min_year = state_data.get('min_year')
+        
+        sort_by = "relevance"
+        if text == BTN_SORT_CITATION:
+            sort_by = "citation"
+
         await update.message.reply_text("⏳ در حال جستجوی مقالات...")
-        articles = search_article_by_name(query, page=1, min_year=min_year)
+        articles = search_article_by_name(query, page=1, min_year=min_year, sort_by=sort_by)
         if not articles:
-            await update.message.reply_text("❌ مقاله‌ای یافت نشد.")
+            await update.message.reply_text("❌ مقاله‌ای یافت نشد.", reply_markup=get_main_menu_keyboard())
             return
-        await show_article_results(update, chat_id, articles, query=query, page=1, min_year=min_year)
+        await show_article_results(update, chat_id, articles, query=query, page=1, min_year=min_year, sort_by=sort_by)
         return
 
     # ====== 4. پردازش انتخاب مقاله یا تغییر صفحه ======
@@ -105,24 +124,25 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         query = state_data.get('query')
         page = state_data.get('page', 1)
         min_year = state_data.get('min_year')
+        sort_by = state_data.get('sort_by', 'relevance') # دریافت نوع مرتب‌سازی از state
         
         # مدیریت دکمه‌های صفحه بعد و قبل
         if text == BTN_NEXT_PAGE:
             page += 1
             await update.message.reply_text(f"⏳ در حال دریافت صفحه $ {page} $...")
-            articles = search_article_by_name(query, page=page, min_year=min_year)
+            articles = search_article_by_name(query, page=page, min_year=min_year, sort_by=sort_by)
             if not articles:
                 await update.message.reply_text("❌ نتیجه دیگری یافت نشد.")
                 return
-            await show_article_results(update, chat_id, articles, query, page, min_year)
+            await show_article_results(update, chat_id, articles, query, page, min_year, sort_by)
             return
             
         elif text == BTN_PREV_PAGE:
             if page > 1:
                 page -= 1
                 await update.message.reply_text(f"⏳ در حال دریافت صفحه $ {page} $...")
-                articles = search_article_by_name(query, page=page, min_year=min_year)
-                await show_article_results(update, chat_id, articles, query, page, min_year)
+                articles = search_article_by_name(query, page=page, min_year=min_year, sort_by=sort_by)
+                await show_article_results(update, chat_id, articles, query, page, min_year, sort_by)
             return
 
         # مدیریت دانلود

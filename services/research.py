@@ -47,20 +47,22 @@ def format_openalex_item(item) -> dict:
         "oa_url": oa_url
     }
 
-def search_article_by_name(query, page=1, min_year=None):
+def search_article_by_name(query, page=1, min_year=None, sort_by="relevance"):
     """
-    جستجوی مقاله در OpenAlex با پشتیبانی از شماره صفحه و فیلتر سال
+    جستجوی مقاله با قابلیت مرتب‌سازی بر اساس ارتباط یا تعداد استناد
     """
     url = "https://api.openalex.org/works"
     
-    # تنظیمات پایه (5 نتیجه در هر صفحه)
     params = {
         "search": query,
         "per-page": 5,  
-        "page": page,   
-        "sort": "cited_by_count:desc" 
+        "page": page
     }
     
+    # اگر کاربر مرتب‌سازی بر اساس استناد را انتخاب کرده باشد
+    if sort_by == "citation":
+        params["sort"] = "cited_by_count:desc"
+        
     if min_year:
         params["filter"] = f"from_publication_date:{min_year}-01-01"
 

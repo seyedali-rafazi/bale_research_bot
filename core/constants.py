@@ -22,3 +22,6 @@ BTN_YEAR_2015 = "از 2015 به بعد 📅"
 
 BTN_NEXT_PAGE = "صفحه بعد ➡️"
 BTN_PREV_PAGE = "⬅️ صفحه قبل"
+
+BTN_SORT_RELEVANCE = "🎯 بر اساس مرتبط‌ترین"
+BTN_SORT_CITATION = "📈 بر اساس بیشترین استناد"

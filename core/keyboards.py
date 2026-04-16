@@ -32,8 +32,17 @@ def get_citation_format_keyboard():
 def get_year_filter_keyboard():
     keyboard = [
         [KeyboardButton(BTN_YEAR_ALL)],
-        [KeyboardButton(BTN_YEAR_2024), KeyboardButton(BTN_YEAR_2020)],
-        [KeyboardButton(BTN_YEAR_2015)],
+        [KeyboardButton(BTN_YEAR_2015), KeyboardButton(BTN_YEAR_2020)],
+        [KeyboardButton(BTN_YEAR_2024)],
         [KeyboardButton(BTN_BACK)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_sort_filter_keyboard():
+    keyboard = [
+        [KeyboardButton(BTN_SORT_RELEVANCE)],
+        [KeyboardButton(BTN_SORT_CITATION)],
+        [KeyboardButton(BTN_BACK)]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
