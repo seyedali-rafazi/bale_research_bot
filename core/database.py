@@ -13,12 +13,19 @@ def init_db():
             username TEXT,
             is_vip INTEGER DEFAULT 0,
             join_date TEXT,
-            vip_expire_date TEXT
+            vip_expire_date TEXT,
+            citation_count INTEGER DEFAULT 0
         )
     ''')
     
+    # اضافه کردن امن ستون‌ها در صورت عدم وجود (بدون پاک شدن دیتابیس)
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN vip_expire_date TEXT")
+    except sqlite3.OperationalError:
+        pass
+        
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN citation_count INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass
 
@@ -33,7 +40,7 @@ def init_db():
         )
     ''')
 
-    # --- کدهای جدید: ساخت جدول تراکنش‌ها ---
+    # جدول تراکنش‌ها
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,7 +55,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- تابع جدید برای ثبت تراکنش ---
 def add_transaction(user_id, amount, payload, provider_charge_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -159,3 +165,19 @@ def get_user_total_usage(user_id):
     result = cursor.fetchone()
     conn.close()
     return result[0] if result and result[0] else 0
+
+# --- توابع جدید برای رفرنس‌دهی ---
+def get_citation_count(user_id: str) -> int:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT citation_count FROM users WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else 0
+
+def increment_citation_count(user_id: str):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET citation_count = citation_count + 1 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()

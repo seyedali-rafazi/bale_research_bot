@@ -7,23 +7,19 @@ import asyncio
 from telethon import TelegramClient
 from dotenv import load_dotenv
 
-# بارگذاری متغیرهای محیطی
 load_dotenv() 
 API_ID = os.getenv("API_ID")
 API_HASH =  os.getenv("API_HASH")
 SESSION_NAME =  os.getenv("SESSION_NAME")
 SCIHUB_BOT_USERNAME = os.getenv("SCIHUB_BOT_USERNAME")
 
-# متغیر قفل، مقداردهی آن در داخل تابع انجام می‌شود تا باعث ارور نشود
 download_lock = None
 
 def clean_doi(doi: str) -> str:
-    """پاکسازی لینک و استخراج فقط خود شناسه DOI"""
     doi = re.sub(r'^(https?://)?(dx\.)?doi\.org/', '', doi).strip()
     return doi
 
 def format_crossref_item(item) -> dict:
-    """مرتب‌سازی اطلاعات دریافتی از API مقالات"""
     title = item.get('title', ['بدون عنوان'])[0]
     authors = item.get('author', [])
     author_names = ", ".join([f"{a.get('given', '')} {a.get('family', '')}".strip() for a in authors])
@@ -44,7 +40,6 @@ def format_crossref_item(item) -> dict:
     }
 
 def search_article_by_name(query: str, limit: int = 5) -> list:
-    """جستجوی مقاله بر اساس نام از طریق API CrossRef"""
     url = f"https://api.crossref.org/works?query={query}&select=title,author,DOI,published-print,published-online&rows={limit}"
     try:
         response = requests.get(url, timeout=10)
@@ -56,7 +51,6 @@ def search_article_by_name(query: str, limit: int = 5) -> list:
     return []
 
 def search_article_by_doi(doi_input: str) -> list:
-    """جستجوی اطلاعات مقاله بر اساس DOI از طریق API CrossRef"""
     doi_clean = clean_doi(doi_input)
     url = f"https://api.crossref.org/works/{doi_clean}"
     try:
@@ -68,8 +62,38 @@ def search_article_by_doi(doi_input: str) -> list:
         print(f"Error fetching DOI from CrossRef: {e}")
     return []
 
+# --- تابع جدید برای استخراج اطلاعات دقیق جهت تولید رفرنس ---
+def get_article_data_for_citation(doi_input: str) -> dict:
+    doi_clean = clean_doi(doi_input)
+    url = f"https://api.crossref.org/works/{doi_clean}"
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            item = response.json().get('message', {})
+            title = item.get('title', [''])[0]
+            
+            year = ''
+            try:
+                published = item.get('published-print', item.get('published-online', {}))
+                year = published.get('date-parts', [['']])[0][0]
+            except Exception:
+                year = 'N.d.'
+                
+            authors_list = item.get('author', [])
+            authors = [f"{a.get('family', '')}, {a.get('given', '')}" for a in authors_list]
+            
+            return {
+                'title': title,
+                'year': str(year),
+                'authors_list': authors, 
+                'doi': doi_clean,
+                'journal': item.get('container-title', [''])[0]
+            }
+    except Exception as e:
+        print(f"Error fetching exact DOI for citation: {e}")
+    return None
+
 async def download_pdf_via_telegram(doi_input: str) -> str:
-    """ارسال DOI به ربات تلگرام سای‌هاب و دریافت فایل PDF"""
     global download_lock
     if download_lock is None:
         download_lock = asyncio.Lock()
@@ -78,7 +102,6 @@ async def download_pdf_via_telegram(doi_input: str) -> str:
     if not doi:
         return None
 
-    # استفاده از قفل برای جلوگیری از تداخل کاربران همزمان
     async with download_lock:
         client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
         await client.connect()
@@ -90,16 +113,10 @@ async def download_pdf_via_telegram(doi_input: str) -> str:
 
         downloaded_file_path = None
         try:
-            # پاک کردن تاریخچه قبلی با ربات مرجع برای جلوگیری از دریافت فایل‌های قدیمی
             await client.delete_dialog(SCIHUB_BOT_USERNAME)
-            
-            # ارسال شناسه مقاله به ربات مرجع
             await client.send_message(SCIHUB_BOT_USERNAME, doi)
-            
-            # صبر برای دریافت فایل (۸ ثانیه)
             await asyncio.sleep(8) 
             
-            # بررسی ۳ پیام آخر ربات مرجع
             messages = await client.get_messages(SCIHUB_BOT_USERNAME, limit=3)
             for msg in messages:
                 if msg.file and msg.file.ext == '.pdf':
@@ -113,7 +130,6 @@ async def download_pdf_via_telegram(doi_input: str) -> str:
         except Exception as e:
             print(f"Error in Telegram fetch: {e}")
         finally:
-            # همیشه در پایان اتصال را قطع کن
             await client.disconnect()
 
         return downloaded_file_path
