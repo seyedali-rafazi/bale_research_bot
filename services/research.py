@@ -48,15 +48,28 @@ def format_openalex_item(item) -> dict:
     }
 
 def search_article_by_name(query: str, limit: int = 5) -> list:
-    # جستجو در OpenAlex - مرتب سازی بر اساس استناد و مرتبط بودن
-    url = f"https://api.openalex.org/works?default.search={query}&sort=cited_by_count:desc&per-page={limit}"
+    url = "https://api.openalex.org/works"
+    
+    params = {
+        "search": query,
+        "sort": "cited_by_count:desc",
+        "per-page": limit
+    }
+    
+    headers = {
+        "User-Agent": "TelegramBot/1.0 (mailto:admin@yourdomain.com)"
+    }
+    
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params=params, headers=headers, timeout=15)
         if response.status_code == 200:
             items = response.json().get('results', [])
             return [format_openalex_item(item) for item in items]
+        else:
+            print(f"OpenAlex Error: {response.status_code} - {response.text}")
     except Exception as e:
         print(f"Error searching OpenAlex by name: {e}")
+        
     return []
 
 def search_article_by_doi(doi_input: str) -> list:
