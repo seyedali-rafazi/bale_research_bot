@@ -39,6 +39,21 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         await cmd_start(update, context)
         return
 
+    # ====== پردازش پشتیبانی ======
+    if step == 'waiting_support_message':
+        admin_id = os.getenv("ADMIN_ID")
+        if admin_id:
+            msg_to_admin = f"📩 **پیام جدید از پشتیبانی**\n\n👤 آیدی کاربر: `{chat_id}`\n\nمتن پیام:\n{text}"
+            await context.bot.send_message(chat_id=admin_id, text=msg_to_admin)
+            await update.message.reply_text("✅ پیام شما با موفقیت برای تیم پشتیبانی ارسال شد.")
+            
+            from .commands import cmd_start
+            await cmd_start(update, context)
+        else:
+            await update.message.reply_text("❌ خطای سیستمی: آیدی ادمین تنظیم نشده است.")
+        return
+    
+    
     # ====== 1. پردازش دریافت DOI ======
     if step == 'waiting_article_doi':
         await update.message.reply_text("⏳ در حال بررسی شناسه DOI...")

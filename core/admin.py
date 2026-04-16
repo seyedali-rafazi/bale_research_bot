@@ -1,20 +1,29 @@
+#core/admin
+
 from telegram import Update
 from telegram.ext import ContextTypes
-from core.database import get_total_users, set_vip
+from core.database import get_total_users, get_total_vip_users, set_vip
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
-# آیدی عددی ادمین را در فایل .env قرار دهید
 ADMIN_ID = os.getenv("ADMIN_ID") 
 
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     if chat_id != ADMIN_ID:
-        return # فقط ادمین میتواند این دستور را اجرا کند
+        return 
         
     total_users = get_total_users()
-    await update.message.reply_text(f"📊 **آمار ربات:**\n\nتعداد کل کاربران: $ {total_users} $ نفر")
+    vip_users = get_total_vip_users()
+    normal_users = total_users - vip_users
+    
+    await update.message.reply_text(
+        f"📊 **آمار ربات:**\n\n"
+        f"تعداد کل کاربران: $ {total_users} $ نفر\n"
+        f"کاربران عادی: $ {normal_users} $ نفر\n"
+        f"کاربران VIP: $ {vip_users} $ نفر"
+    )
 
 async def cmd_setvip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)

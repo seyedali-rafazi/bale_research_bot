@@ -5,7 +5,8 @@ from .constants import *
 
 def get_main_menu_keyboard():
     keyboard = [
-        [KeyboardButton(BTN_ARTICLE)]
+        [KeyboardButton(BTN_ARTICLE)],
+        [KeyboardButton(BTN_USER_INFO), KeyboardButton(BTN_SUPPORT)]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 

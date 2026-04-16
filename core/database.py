@@ -81,3 +81,19 @@ def get_user_usage_today(user_id, action):
     result = cursor.fetchone()
     conn.close()
     return result[0] if result else 0
+
+def get_total_vip_users():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users WHERE is_vip = 1")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def get_user_total_usage(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT SUM(count) FROM usage_stats WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result and result[0] else 0
