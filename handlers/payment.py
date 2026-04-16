@@ -9,15 +9,23 @@ PROVIDER_TOKEN = "WALLET-TEST-1111111111111111" # توکن کیف پول شما
 async def btn_buy_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
-    title = "اشتراک یک ماهه VIP"
-    description = "با خرید این اشتراک به مدت ۳۰ روز محدودیت دانلود شما افزایش می‌یابد."
+    # مقادیر فاکتور
+    title = "اشتراک VIP" # سعی کنید کوتاه باشد
+    description = "ارتقا به حساب ویژه برای یک ماه"
     payload = f"vip_1month_{chat_id}"
     currency = "IRR" # ریال
-    # قیمت ۵۰ هزار تومان معادل ۵۰۰,۰۰۰ ریال است
-    prices = [LabeledPrice("اشتراک 1 ماهه", 200000)]
+    prices = [LabeledPrice("اشتراک 1 ماهه", 200000)] # ۵۰ هزار تومان
 
+    # استفاده از آرگومان‌های کلیدی (kwargs) بسیار مهم است
     await context.bot.send_invoice(
-        chat_id, title, description, payload, PROVIDER_TOKEN, currency, prices
+        chat_id=chat_id,
+        title=title,
+        description=description,
+        payload=payload,
+        provider_token=PROVIDER_TOKEN,
+        currency=currency,
+        prices=prices,
+        start_parameter="buy_vip" # در برخی نسخه‌های API بله این پارامتر الزامی است
     )
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
