@@ -1,5 +1,3 @@
-# core/database.py
-
 import sqlite3
 from datetime import datetime
 
@@ -8,7 +6,7 @@ DB_NAME = "bot_data.db"
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # جدول کاربران با ستون جدید vip_expire_date
+    # جدول کاربران
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id TEXT PRIMARY KEY,
@@ -19,14 +17,12 @@ def init_db():
         )
     ''')
     
-    # این بخش برای دیتابیس‌های قدیمی شماست تا بدون ارور ستون جدید به آن‌ها اضافه شود
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN vip_expire_date TEXT")
     except sqlite3.OperationalError:
-        # اگر ستون از قبل وجود داشته باشد این ارور نادیده گرفته می‌شود
         pass
 
-    # جدول آمار استفاده روزانه
+    # جدول آمار استفاده
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usage_stats (
             user_id TEXT,
@@ -36,6 +32,31 @@ def init_db():
             PRIMARY KEY (user_id, action, date)
         )
     ''')
+
+    # --- کدهای جدید: ساخت جدول تراکنش‌ها ---
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            amount INTEGER,
+            payload TEXT,
+            provider_charge_id TEXT,
+            date TEXT
+        )
+    ''')
+
+    conn.commit()
+    conn.close()
+
+# --- تابع جدید برای ثبت تراکنش ---
+def add_transaction(user_id, amount, payload, provider_charge_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    cursor.execute('''
+        INSERT INTO transactions (user_id, amount, payload, provider_charge_id, date)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (str(user_id), amount, payload, provider_charge_id, current_time))
     conn.commit()
     conn.close()
 
@@ -48,7 +69,6 @@ def add_user(user_id, username=None):
     conn.close()
 
 def is_vip(user_id):
-    """بررسی VIP بودن کاربر به همراه چک کردن تاریخ انقضا"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("SELECT is_vip, vip_expire_date FROM users WHERE user_id = ?", (user_id,))
@@ -64,12 +84,10 @@ def is_vip(user_id):
         if expire_date_str:
             expire_date = datetime.fromisoformat(expire_date_str)
             if datetime.now() > expire_date:
-                # تاریخ انقضا گذشته است. کاربر از VIP خارج می‌شود.
                 cursor.execute("UPDATE users SET is_vip = 0, vip_expire_date = NULL WHERE user_id = ?", (user_id,))
                 conn.commit()
                 conn.close()
                 return False
-        # اگر تاریخ نگذشته باشد یا کاربر VIP دائمی (بدون تاریخ انقضا) باشد
         conn.close()
         return True
         
@@ -77,7 +95,6 @@ def is_vip(user_id):
     return False
 
 def set_vip(user_id, status: int):
-    """دستی تنظیم کردن VIP (اگر وضعیت 0 شود تاریخ انقضا هم پاک می‌شود)"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     if status == 0:
@@ -88,7 +105,6 @@ def set_vip(user_id, status: int):
     conn.close()
 
 def set_vip_with_expiration(user_id, status: int, expire_date: datetime):
-    """ثبت VIP به همراه تاریخ انقضا (مخصوص پرداخت اشتراک)"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     expire_date_str = expire_date.isoformat() if expire_date else None
@@ -131,7 +147,6 @@ def get_total_vip_users():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     now_str = datetime.now().isoformat()
-    # تنها کاربرانی شمرده می‌شوند که اشتراکشان فعال و منقضی‌نشده باشد
     cursor.execute("SELECT COUNT(*) FROM users WHERE is_vip = 1 AND (vip_expire_date IS NULL OR vip_expire_date > ?)", (now_str,))
     count = cursor.fetchone()[0]
     conn.close()

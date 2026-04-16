@@ -1,22 +1,20 @@
-# handlers/payment.py
 from telegram import Update, LabeledPrice
 from telegram.ext import ContextTypes
 import datetime
-from core.database import set_vip_with_expiration # این تابع را باید در دیتابیس خود بسازید
+# ایمپورت کردن تابع جدید ثبت تراکنش به همراه تابع تنظیم VIP
+from core.database import set_vip_with_expiration, add_transaction 
 
-PROVIDER_TOKEN = "WALLET-TEST-1111111111111111" # توکن کیف پول شما
+PROVIDER_TOKEN = "WALLET-TEST-1111111111111111"
 
 async def btn_buy_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
-    # مقادیر فاکتور
-    title = "اشتراک VIP" # سعی کنید کوتاه باشد
+    title = "اشتراک VIP"
     description = "ارتقا به حساب ویژه برای یک ماه"
     payload = f"vip_1month_{chat_id}"
-    currency = "IRR" # ریال
-    prices = [LabeledPrice("اشتراک 1 ماهه", 200000)] # ۵۰ هزار تومان
+    currency = "IRR" 
+    prices = [LabeledPrice("اشتراک 1 ماهه", 500000)] 
 
-    # استفاده از آرگومان‌های کلیدی (kwargs) بسیار مهم است
     await context.bot.send_invoice(
         chat_id=chat_id,
         title=title,
@@ -25,11 +23,10 @@ async def btn_buy_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         provider_token=PROVIDER_TOKEN,
         currency=currency,
         prices=prices,
-        start_parameter="buy_vip" # در برخی نسخه‌های API بله این پارامتر الزامی است
+        start_parameter="buy_vip"
     )
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """تایید اولیه قبل از کسر موجودی"""
     query = update.pre_checkout_query
     if query.invoice_payload.startswith("vip_1month_"):
         await query.answer(ok=True)
@@ -37,14 +34,35 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.answer(ok=False, error_message="خطا در اطلاعات پرداخت.")
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """عملیات بعد از پرداخت موفق"""
     chat_id = str(update.effective_chat.id)
     payment_info = update.message.successful_payment
     
-    # اضافه کردن 30 روز به تاریخ فعلی
-    expiration_date = datetime.datetime.now() + datetime.timedelta(days=30)
+    # 1. استخراج اطلاعات پرداخت
+    total_amount = payment_info.total_amount # مبلغ به ریال
+    payload = payment_info.invoice_payload
+    provider_charge_id = payment_info.provider_payment_charge_id # کد پیگیری درگاه
     
-    # شما باید تابع زیر را در دیتابیس خود اضافه کنید تا تاریخ انقضا را هم ذخیره کند
+    # 2. ثبت تراکنش در دیتابیس (سیستم لاگ)
+    add_transaction(
+        user_id=chat_id,
+        amount=total_amount,
+        payload=payload,
+        provider_charge_id=provider_charge_id
+    )
+    
+    # 3. ارتقا کاربر به VIP به مدت ۳۰ روز
+    expiration_date = datetime.datetime.now() + datetime.timedelta(days=30)
     set_vip_with_expiration(chat_id, 1, expiration_date) 
     
-    await update.message.reply_text("✅ پرداخت شما با موفقیت انجام شد!\nشما اکنون کاربر VIP هستید و محدودیت‌های شما تا یک ماه آینده برداشته شد. 🌟")
+    # 4. ایجاد و ارسال رسید پرداخت برای کاربر
+    amount_toman = int(total_amount / 10) # محاسبه تومان: $ amount / 10 $
+    receipt_text = (
+        "✅ **پرداخت شما با موفقیت تایید و ثبت شد!**\n\n"
+        "🧾 **رسید تراکنش شما:**\n"
+        f"👤 شناسه: `{chat_id}`\n"
+        f"💰 مبلغ: {amount_toman:,} تومان\n"
+        f"🔖 کد پیگیری درگاه: `{provider_charge_id}`\n\n"
+        "🌟 شما اکنون کاربر VIP هستید و محدودیت‌های شما تا یک ماه آینده برداشته شد."
+    )
+    
+    await update.message.reply_text(text=receipt_text, parse_mode='Markdown')
