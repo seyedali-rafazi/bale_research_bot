@@ -3,8 +3,12 @@ from telegram.ext import ContextTypes
 import datetime
 # ایمپورت کردن تابع جدید ثبت تراکنش به همراه تابع تنظیم VIP
 from core.database import set_vip_with_expiration, add_transaction 
+from dotenv import load_dotenv
+import os
 
-PROVIDER_TOKEN = "WALLET-TEST-1111111111111111"
+# بارگذاری متغیرهای محیطی
+load_dotenv() 
+PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
 
 async def btn_buy_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
