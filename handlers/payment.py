@@ -9,6 +9,7 @@ import os
 # بارگذاری متغیرهای محیطی
 load_dotenv() 
 PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
+PAYMENT_VALUE = os.getenv("PAYMENT_VALUE")
 
 async def btn_buy_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -17,7 +18,7 @@ async def btn_buy_vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     description = "ارتقا به حساب ویژه برای یک ماه"
     payload = f"vip_1month_{chat_id}"
     currency = "IRR" 
-    prices = [LabeledPrice("اشتراک 1 ماهه", 500000)] 
+    prices = [LabeledPrice("اشتراک 1 ماهه", PAYMENT_VALUE)] 
 
     await context.bot.send_invoice(
         chat_id=chat_id,
