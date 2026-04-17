@@ -8,6 +8,7 @@ def get_main_menu_keyboard():
         [KeyboardButton(BTN_ARTICLE)],
         [KeyboardButton(BTN_CITATION)],
         [KeyboardButton(BTN_SMART_ABSTRACT)],
+        [KeyboardButton(BTN_TRANSLATE), KeyboardButton(BTN_BIBTEX)], 
         [KeyboardButton(BTN_USER_INFO), KeyboardButton(BTN_SUPPORT)],
         [KeyboardButton(BTN_BUY_VIP)]
     ]

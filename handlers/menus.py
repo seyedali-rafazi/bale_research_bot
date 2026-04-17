@@ -133,3 +133,36 @@ async def btn_smart_abstract_req(update: Update, context: ContextTypes.DEFAULT_T
         parse_mode='Markdown',
         reply_markup=ReplyKeyboardMarkup([[KeyboardButton(BTN_BACK)]], resize_keyboard=True)
     )
+
+async def btn_translate_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_chat.id)
+    
+    if not is_vip(chat_id):
+        usage_today = get_user_usage_today(chat_id, "translate_text")
+        if usage_today >= 2:
+            await update.message.reply_text("❌ کاربر عادی عزیز، شما از تمام ظرفیت روزانه ($ 2 $ بار) برای ابزار **ترجمه متن** استفاده کرده‌اید.\nبرای استفاده نامحدود، اکانت خود را VIP کنید.")
+            return
+
+    set_state(chat_id, 'waiting_translate_text')
+    await update.message.reply_text(
+        "🇮🇷 **به بخش ترجمه متون علمی خوش آمدید!**\n\n"
+        "لطفاً متن انگلیسی مورد نظر خود را بفرستید تا با دقت بالا به فارسی ترجمه شود:", 
+        reply_markup=ReplyKeyboardMarkup([[KeyboardButton(BTN_BACK)]], resize_keyboard=True)
+    )
+
+async def btn_bibtex_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_chat.id)
+    
+    if not is_vip(chat_id):
+        usage_today = get_user_usage_today(chat_id, "generate_bibtex")
+        if usage_today >= 2:
+            await update.message.reply_text("❌ کاربر عادی عزیز، شما از تمام ظرفیت روزانه ($ 2 $ بار) برای ابزار **تولید BibTeX** استفاده کرده‌اید.\nبرای استفاده نامحدود، اکانت خود را VIP کنید.")
+            return
+
+    set_state(chat_id, 'waiting_bibtex_doi')
+    await update.message.reply_text(
+        "📜 **به بخش تولید فایل BibTeX خوش آمدید!**\n\n"
+        "لطفاً شناسه DOI مقاله مورد نظر را ارسال کنید (مثال: `10.1038/nature12373`):", 
+        reply_markup=ReplyKeyboardMarkup([[KeyboardButton(BTN_BACK)]], resize_keyboard=True),
+        parse_mode='Markdown'
+    )

@@ -26,3 +26,6 @@ BTN_PREV_PAGE = "⬅️ صفحه قبل"
 
 BTN_SORT_RELEVANCE = "🎯 بر اساس مرتبط‌ترین"
 BTN_SORT_CITATION = "📈 بر اساس بیشترین استناد"
+
+BTN_TRANSLATE = "ترجمه اینگلیسی"
+BTN_BIBTEX = "📜 تولید BibTeX"
