@@ -9,6 +9,7 @@ from core.keyboards import (
     get_main_menu_keyboard,
     get_year_filter_keyboard,
     get_sort_filter_keyboard,
+    get_books_inline_keyboard,
 )
 from core.constants import *
 from core.database import (
@@ -25,6 +26,7 @@ from services.research import (
 )
 from services.ai_abstract import get_abstract_from_openalex, analyze_abstract_with_ai
 from services.extra_tools import translate_text_with_ai, get_bibtex_from_openalex
+from services.book_service import search_books_by_name
 
 
 async def show_article_results(
@@ -90,6 +92,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if text in ["0", "لغو", "شروع", "بازگشت", BTN_BACK]:
         from .commands import cmd_start
+
         await cmd_start(update, context)
         return
 
@@ -103,6 +106,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                 "✅ پیام شما با موفقیت برای تیم پشتیبانی ارسال شد."
             )
             from .commands import cmd_start
+
             await cmd_start(update, context)
         return
 
@@ -395,5 +399,27 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         set_state(chat_id, None)
         return
 
+    # ====== 9.دانلود کتاب   ======
+    if step == "waiting_book_name":
+        book_name = text.strip()
+        await update.message.reply_text("⏳ در حال جستجوی کتاب در پایگاه داده...")
+
+        books = search_books_by_name(book_name)
+        if not books:
+            await update.message.reply_text("❌ کتابی با این نام یافت نشد.")
+            return
+
+        # ذخیره لیست کتاب‌ها در state برای دانلود بعدی
+        set_state(chat_id, "waiting_book_download", books=books)
+
+        msg_text = (
+            "📚 **نتایج یافت شده:**\n\nجهت دانلود روی دکمه مربوطه در زیر کلیک کنید👇"
+        )
+        await update.message.reply_text(
+            msg_text,
+            parse_mode="Markdown",
+            reply_markup=get_books_inline_keyboard(books),
+        )
+        return
     if not step:
         await update.message.reply_text("لطفاً از منوی اصلی استفاده کنید.")

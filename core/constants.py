@@ -29,3 +29,5 @@ BTN_SORT_CITATION = "📈 بر اساس بیشترین استناد"
 
 BTN_TRANSLATE = "ترجمه اینگلیسی"
 BTN_BIBTEX = "📜 تولید BibTeX"
+BTN_BOOK_SEARCH = "📕 جستجو و دانلود کتاب"
+
