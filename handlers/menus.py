@@ -13,10 +13,19 @@ async def btn_back_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await cmd_start(update, context)
 
 async def btn_article_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "📚 **به بخش جستجوی مقالات خوش آمدید!**\n\n"
+        "💡 **راهنمای جستجو:**\n"
+        "🔹 **جستجو با DOI:** ربات تلاش می‌کند مقاله را از پایگاه **Sci-Hub** دانلود کند (بهترین روش برای مقالات پولی و غیررایگان).\n"
+        "🔹 **جستجو بر اساس نام:** ربات در پایگاه **OpenAlex** جستجو کرده و مقالاتی که نسخه رایگان (Open Access) دارند را برای شما پیدا می‌کند.\n\n"
+        "یک گزینه را انتخاب کنید 👇"
+    )
     await update.message.reply_text(
-        "📚 به بخش جستجوی مقالات خوش آمدید!\nیک گزینه را انتخاب کنید 👇", 
+        text, 
+        parse_mode='Markdown',
         reply_markup=get_article_menu_keyboard()
     )
+
 
 async def btn_user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
@@ -43,10 +52,22 @@ async def btn_support_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def btn_search_doi_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     set_state(chat_id, 'waiting_article_doi')
+    
+    text = (
+        "🔍 **لطفاً شناسه DOI مقاله مورد نظر را بفرستید.**\n\n"
+        "شما می‌توانید شناسه را به هر دو شکل زیر (لینک کامل یا فقط کد) ارسال کنید:\n\n"
+        "🔸 **فقط کد:**\n"
+        "`10.1364/oe.21.004958`\n"
+        "🔸 **لینک کامل:**\n"
+        "`https://doi.org/10.1364/oe.21.004958`"
+    )
+    
     await update.message.reply_text(
-        "🔍 لطفاً شناسه DOI مقاله را بفرستید (مثال: 10.1038/nature12373):", 
+        text, 
+        parse_mode='Markdown',
         reply_markup=ReplyKeyboardMarkup([[KeyboardButton(BTN_BACK)]], resize_keyboard=True)
     )
+
 
 async def btn_search_name_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
@@ -66,8 +87,16 @@ async def btn_citation_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     set_state(chat_id, 'waiting_for_citation_doi')
+    text = (
+        "📑 **لطفاً شناسه DOI مقاله مورد نظر را جهت تولید رفرنس ارسال کنید:**\n\n"
+        "💡 (می‌توانید هم لینک کامل و هم شناسه خالی را بفرستید)\n"
+        "مثال‌ها:\n"
+        "`10.1038/nature12373`\n"
+        "`https://doi.org/10.1038/nature12373`"
+    )
+    
     await update.message.reply_text(
-        "📑 لطفاً شناسه DOI مقاله مورد نظر را جهت تولید رفرنس ارسال کنید:\n(مثال: `10.1038/nature12373`)", 
+        text, 
         parse_mode='Markdown',
         reply_markup=ReplyKeyboardMarkup([[KeyboardButton(BTN_BACK)]], resize_keyboard=True)
     )
