@@ -130,7 +130,7 @@ async def download_direct_pdf(url: str, doi_or_name: str) -> str:
                 for chunk in response.iter_content(1024):
                     if chunk: f.write(chunk)
             
-            if os.path.exists(file_path) and os.path.getsize(file_path) > 10240: # حجم بیشتر از $ 10 $ کیلوبایت
+            if os.path.exists(file_path) and os.path.getsize(file_path) > 10240: # حجم بیشتر از 10 کیلوبایت
                 return file_path
             else:
                 if os.path.exists(file_path): os.remove(file_path)
@@ -160,7 +160,7 @@ async def download_pdf_via_telegram(doi_input: str) -> str:
         try:
             await client.delete_dialog(SCIHUB_BOT_USERNAME)
             await client.send_message(SCIHUB_BOT_USERNAME, doi)
-            await asyncio.sleep(12) # افزایش زمان به $ 12 $ ثانیه برای اطمینان
+            await asyncio.sleep(12) # افزایش زمان به 12 ثانیه برای اطمینان
             
             messages = await client.get_messages(SCIHUB_BOT_USERNAME, limit=3)
             for msg in messages:
@@ -221,4 +221,42 @@ async def smart_download_pdf(article: dict, status_message) -> str:
 
     # 5. پایان تلاش‌ها
     await status_message.edit_text("❌ متاسفانه فایل PDF مستقیم این مقاله در هیچ‌یک از ۴ منبع (OpenAlex, Unpaywall, Semantic Scholar, Sci-Hub) یافت نشد.")
+    return None
+
+def get_article_data_for_citation(doi_input: str) -> dict:
+    """دریافت اطلاعات مقاله از OpenAlex برای تولید رفرنس"""
+    doi_clean = clean_doi(doi_input)
+    url = f"https://api.openalex.org/works/https://doi.org/{doi_clean}"
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            
+            title = data.get('title', 'Unknown Title')
+            year = str(data.get('publication_year', 'Unknown Year'))
+            doi_val = clean_doi(data.get('doi', ''))
+            
+            # استخراج نام ژورنال
+            journal = "Unknown Journal"
+            primary_location = data.get('primary_location')
+            if primary_location and primary_location.get('source'):
+                journal = primary_location['source'].get('display_name', 'Unknown Journal')
+                
+            # استخراج لیست نویسندگان
+            authors_list = []
+            for authorship in data.get('authorships', []):
+                author_name = authorship.get('author', {}).get('display_name')
+                if author_name:
+                    authors_list.append(author_name)
+                    
+            return {
+                'title': title,
+                'year': year,
+                'doi': doi_val,
+                'journal': journal,
+                'authors_list': authors_list
+            }
+    except Exception as e:
+        print(f"Error fetching data for citation: {e}")
+        
     return None
