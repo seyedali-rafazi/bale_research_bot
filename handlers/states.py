@@ -22,15 +22,19 @@ async def show_article_results(update: Update, chat_id: str, articles: list, que
     keyboard = []
     
     for i, art in enumerate(articles):
-        oa_status = "🔓 فایل رایگان موجود" if art.get('oa_url') else "🔒 نیاز به سای‌هاب"
+        if art.get('is_oa') or art.get('oa_url'): 
+             oa_status = "✅ Available (Open Access)"
+        else:
+            oa_status = "🤖 Need Sci-Hub"
+            
         text_res += (
-                f"**{i+1}. Title:** {art.get('title')} ({art.get('year')})\n"
-                f"👥 **Authors:** {art.get('authors')}\n"
-                f"🔗 **DOI:** {art.get('doi')}\n"
-                f"📈 **Citation:** $ {art.get('citations')} $\n"
-                f"📄 **PDF:** {oa_status}\n"
-                f"────────────────────\n"
-                    )
+            f"<b>{i+1}. Title:</b> {art.get('title')} ({art.get('year')})\n"
+            f"👥 <b>Authors:</b> {art.get('authors')}\n"
+            f"🔗 <b>DOI:</b> {art.get('doi')}\n"
+            f"📈 <b>Citation:</b> $ {art.get('citations')} $\n"
+            f"📄 <b>PDF:</b> {oa_status}\n"
+            f"────────────────────\n"
+        )
         keyboard.append([KeyboardButton(f"📥 دانلود مقاله {i+1}")])
     
     nav_buttons = []
@@ -47,7 +51,9 @@ async def show_article_results(update: Update, chat_id: str, articles: list, que
     
     # ذخیره تمام متغیرها برای صفحات بعد (از جمله نوع مرتب‌سازی)
     set_state(chat_id, 'waiting_article_selection', articles=articles, query=query, page=page, min_year=min_year, sort_by=sort_by)
-    await update.message.reply_text(text_res, reply_markup=reply_markup)
+    
+    # اضافه شدن parse_mode='HTML' برای جلوگیری از خطاهای متنی تلگرام
+    await update.message.reply_text(text_res, reply_markup=reply_markup, parse_mode='HTML')
 
 async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
