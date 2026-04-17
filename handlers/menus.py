@@ -82,12 +82,25 @@ async def btn_smart_abstract_req(update: Update, context: ContextTypes.DEFAULT_T
     usage_today = get_user_usage_today(chat_id, "smart_abstract")
     
     if usage_today >= daily_limit:
-        await update.message.reply_text(f"❌ شما به سقف مجاز روزانه خود ($ {daily_limit} $ بار) رسیده‌اید.\nبرای افزایش محدودیت می‌توانید حساب خود را VIP کنید.")
+        await update.message.reply_text(f"❌ شما به سقف مجاز روزانه خود ($ {daily_limit} $) بار رسیده‌اید.\nبرای افزایش محدودیت می‌توانید حساب خود را VIP کنید.")
         return
 
     set_state(chat_id, 'waiting_smart_abstract_doi')
+    
+    message_text = (
+        "🧠 **به بخش چکیده هوشمند خوش آمدید!**\n\n"
+        "در این بخش می‌توانید شناسه مقاله مورد نظر خود را ارسال کنید تا هوش مصنوعی چکیده آن را استخراج کرده و تحلیل جامعی از نکات کلیدی آن به شما ارائه دهد.\n\n"
+        "✅ **فرمت‌های قابل پشتیبانی:**\n"
+        "شما می‌توانید DOI را به هر دو شکل زیر ارسال کنید:\n"
+        "🔗 **لینک کامل:**\n"
+        "`https://doi.org/10.1364/oe.21.004958`\n"
+        "🔢 **فقط شناسه:**\n"
+        "`10.1364/oe.21.004958`\n\n"
+        "👇 لطفاً DOI مقاله خود را ارسال کنید:"
+    )
+    
     await update.message.reply_text(
-        "🧠 لطفاً شناسه DOI مقاله مورد نظر را جهت استخراج و تحلیل چکیده ارسال کنید:\n(مثال: `10.1038/nature12373`)", 
+        message_text, 
         parse_mode='Markdown',
         reply_markup=ReplyKeyboardMarkup([[KeyboardButton(BTN_BACK)]], resize_keyboard=True)
     )
