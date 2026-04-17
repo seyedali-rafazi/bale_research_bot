@@ -1,127 +1,129 @@
 import io
 import requests
-from bs4 import BeautifulSoup
-import urllib.parse
 
 
 def search_books_by_name(query: str, limit: int = 5):
     """
-    جستجوی واقعی کتاب با تست دامنه‌های مختلف LibGen
+    جستجوی کتاب از طریق API سایت‌های dbooks.org و Gutenberg (Gutendex)
     """
-    # لیستی از دامنه‌های فعال لیب‌جن
-    mirrors = [
-        "http://libgen.im",
-        "http://libgen.is",
-        "http://libgen.st",
-        "http://libgen.li",
-    ]
-
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     books = []
 
-    for mirror in mirrors:
-        url = f"{mirror}/search.php?req={urllib.parse.quote(query)}&res=25&view=simple&phrase=1&column=def"
+    # 1. جستجو در dbooks.org (بیشتر کتاب‌های برنامه‌نویسی و کامپیوتر - فرمت PDF)
+    try:
+        url = f"https://www.dbooks.org/api/search/{query}"
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("status") == "ok":
+                for item in data.get("books", []):
+                    books.append(
+                        {
+                            "source": "dbooks",
+                            "id": item.get("id"),
+                            "title": item.get("title")[:40],
+                            "author": item.get("authors")[:30],
+                            "year": "نامشخص",  # این API سال را برنمی‌گرداند
+                            "ext": ".pdf",
+                        }
+                    )
+                    if len(books) >= limit:
+                        break
+    except Exception as e:
+        print(f"Error fetching from dbooks: {e}")
+
+    # 2. در صورت نیاز، جستجو در گوتنبرگ برای تکمیل لیست (بیشتر فرمت‌های EPUB)
+    if len(books) < limit:
         try:
-            print(f"Trying to connect to {mirror} ...")
-            response = requests.get(url, headers=headers, timeout=10)
+            gut_url = f"https://gutendex.com/books/?search={query}"
+            resp = requests.get(gut_url, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                for item in data.get("results", []):
+                    # پیدا کردن بهترین لینک دانلود (PDF یا EPUB)
+                    formats = item.get("formats", {})
+                    dl_link = None
+                    ext = ""
 
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, "html.parser")
-                table = soup.find("table", class_="c")
-                if not table:
-                    continue  # سایت باز شده اما جدولی نیست، شاید کپچا باشد
+                    if "application/pdf" in formats:
+                        dl_link = formats["application/pdf"]
+                        ext = ".pdf"
+                    elif "application/epub+zip" in formats:
+                        dl_link = formats["application/epub+zip"]
+                        ext = ".epub"
+                    elif "text/plain; charset=us-ascii" in formats:
+                        dl_link = formats["text/plain; charset=us-ascii"]
+                        ext = ".txt"
 
-                rows = table.find_all("tr")[1:]
-
-                for row in rows:
-                    cols = row.find_all("td")
-                    if len(cols) >= 10:
-                        ext = cols[8].text.strip().lower()
-                        if ext != "pdf":
-                            continue
-
-                        author = cols[1].text.strip()
-                        title_col = cols[2]
-                        title_a = title_col.find_all("a")
-                        title = title_a[0].text.strip() if title_a else "نامشخص"
-                        year = cols[4].text.strip()
-
-                        md5_link = ""
-                        mirror_links = cols[9].find_all("a")
-                        if mirror_links:
-                            md5_link = mirror_links[0].get("href", "")
-                            # در صورتی که لینک نسبی باشد، آن را کامل میکنیم
-                            if md5_link.startswith("/"):
-                                md5_link = "http://library.lol" + md5_link
+                    if dl_link:
+                        author_name = "نامشخص"
+                        if item.get("authors"):
+                            author_name = item["authors"][0].get("name", "نامشخص")
 
                         books.append(
                             {
-                                "title": title,
-                                "author": author[:50],
-                                "year": year,
-                                "link": md5_link,
+                                "source": "gutenberg",
+                                "id": str(item.get("id")),
+                                "title": item.get("title")[:40],
+                                "author": author_name[:30],
+                                "year": "نامشخص",
+                                "link": dl_link,  # لینک دانلود مستقیم گوتنبرگ
+                                "ext": ext,
                             }
                         )
 
-                        if len(books) >= limit:
-                            break
-
-                # اگر با این دامنه موفق به دریافت لیست شدیم، از حلقه خارج می‌شویم
-                if books:
-                    print(f"Successfully fetched from {mirror}")
-                    break
-
+                    if len(books) >= limit:
+                        break
         except Exception as e:
-            print(f"Failed to connect to {mirror}: {e}")
-            continue  # دامنه بعدی را تست کن
+            print(f"Error fetching from Gutenberg: {e}")
 
     return books
 
 
 async def download_book_pdf(book_data: dict) -> io.BytesIO:
     """
-    دریافت فایل واقعی PDF از لینک LibGen
+    دانلود مستقیم فایل کتاب از سرور بر اساس منبع (dbooks یا گوتنبرگ)
     """
     try:
-        download_page_url = book_data.get("link")
-        if not download_page_url:
+        source = book_data.get("source")
+        download_url = None
+        file_ext = book_data.get("ext", ".pdf")
+
+        # اگر منبع dbooks باشد، باید از API دوم برای گرفتن لینک دانلود مستقیم استفاده کنیم
+        if source == "dbooks":
+            book_id = book_data.get("id")
+            details_url = f"https://www.dbooks.org/api/book/{book_id}"
+            resp = requests.get(details_url, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                download_url = data.get("download")
+
+        # اگر منبع گوتنبرگ باشد، لینک دانلود را از قبل داریم
+        elif source == "gutenberg":
+            download_url = book_data.get("link")
+
+        if not download_url:
             return None
 
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-
-        # 1. ورود به صفحه دانلود (library.lol) برای استخراج لینک مستقیم
-        page_resp = requests.get(download_page_url, headers=headers, timeout=15)
-        if page_resp.status_code != 200:
-            return None
-
-        soup = BeautifulSoup(page_resp.text, "html.parser")
-        download_link_tag = soup.find("a", string="GET") or soup.select_one(
-            "#download h2 a"
-        )
-
-        if not download_link_tag:
-            return None
-
-        direct_link = download_link_tag.get("href")
-
-        # 2. دانلود فایل PDF
-        pdf_resp = requests.get(direct_link, headers=headers, timeout=60, stream=True)
-        if pdf_resp.status_code == 200:
-            # بررسی حجم فایل (تلگرام اجازه ارسال فایل بیشتر از 50 مگابایت را به ربات‌های معمولی نمی‌دهد)
-            content_length = pdf_resp.headers.get("content-length")
+        # دانلود فایل واقعی
+        file_resp = requests.get(download_url, stream=True, timeout=60)
+        if file_resp.status_code == 200:
+            # بررسی محدودیت $50$ مگابایت تلگرام
+            content_length = file_resp.headers.get("content-length")
             if content_length and int(content_length) > 50 * 1024 * 1024:
                 print("حجم فایل بیشتر از 50 مگابایت است.")
                 return None
 
-            file_stream = io.BytesIO(pdf_resp.content)
+            file_stream = io.BytesIO(file_resp.content)
             safe_title = "".join(
                 x for x in book_data["title"] if x.isalnum() or x in " _-"
             )
-            file_stream.name = f"{safe_title[:30]}.pdf"
+            file_stream.name = (
+                f"{safe_title[:30]}{file_ext}"  # پسوند فایل به درستی تنظیم می‌شود
+            )
 
             return file_stream
 
     except Exception as e:
-        print(f"Error downloading PDF: {e}")
+        print(f"Error downloading book: {e}")
 
     return None
