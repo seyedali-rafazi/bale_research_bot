@@ -404,22 +404,30 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         book_name = text.strip()
         await update.message.reply_text("⏳ در حال جستجوی کتاب در پایگاه داده...")
 
+        from services.book_service import search_books_by_name
+
         books = search_books_by_name(book_name)
         if not books:
             await update.message.reply_text("❌ کتابی با این نام یافت نشد.")
             return
 
-        # ذخیره لیست کتاب‌ها در state برای دانلود بعدی
         set_state(chat_id, "waiting_book_download", books=books)
 
-        msg_text = (
-            "📚 **نتایج یافت شده:**\n\nجهت دانلود روی دکمه مربوطه در زیر کلیک کنید👇"
-        )
+        # ساخت لیست متنی از کتاب‌ها
+        msg_text = "📚 **نتایج یافت شده:**\n\n"
+        for i, book in enumerate(books):
+            msg_text += f"*{i + 1}.* {book['title']} ({book['year']})\n👤 نویسنده: {book['author']}\n〰️〰️〰️〰️〰️\n"
+
+        msg_text += "\nجهت دانلود روی شماره مربوطه در زیر کلیک کنید👇"
+
+        from core.keyboards import get_books_inline_keyboard
+
         await update.message.reply_text(
             msg_text,
             parse_mode="Markdown",
-            reply_markup=get_books_inline_keyboard(books),
+            reply_markup=get_books_inline_keyboard(len(books)),
         )
         return
+
     if not step:
         await update.message.reply_text("لطفاً از منوی اصلی استفاده کنید.")

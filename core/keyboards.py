@@ -59,11 +59,15 @@ def get_sort_filter_keyboard():
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-def get_books_inline_keyboard(books):
+def get_books_inline_keyboard(books_count: int):
     keyboard = []
-    for i, book in enumerate(books):
-        button = InlineKeyboardButton(
-            f"📥 دانلود: {book['title'][:20]}...", callback_data=f"dlbook_{i}"
-        )
-        keyboard.append([button])
+    row = []
+    for i in range(books_count):
+        # دکمه ها با نام 📥 1, 📥 2 و ...
+        row.append(InlineKeyboardButton(f"📥 {i + 1}", callback_data=f"dlbook_{i}"))
+        if len(row) == 4:  # هر ردیف ۴ دکمه
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
     return InlineKeyboardMarkup(keyboard)
