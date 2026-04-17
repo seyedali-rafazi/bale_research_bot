@@ -10,6 +10,7 @@ BTN_BUY_VIP = "💎 خرید اشتراک VIP"
 
 # دکمه‌های جدید رفرنس‌دهی
 BTN_CITATION = "📑 تولید رفرنس"
+BTN_SMART_ABSTRACT = "🧠 چکیده هوشمند" 
 BTN_APA = "فرمت APA"
 BTN_IEEE = "فرمت IEEE"
 BTN_HARVARD = "فرمت Harvard"

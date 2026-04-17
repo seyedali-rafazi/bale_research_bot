@@ -6,7 +6,8 @@ from .constants import *
 def get_main_menu_keyboard():
     keyboard = [
         [KeyboardButton(BTN_ARTICLE)],
-        [ KeyboardButton(BTN_CITATION)],
+        [KeyboardButton(BTN_CITATION)],
+        [KeyboardButton(BTN_SMART_ABSTRACT)],
         [KeyboardButton(BTN_USER_INFO), KeyboardButton(BTN_SUPPORT)],
         [KeyboardButton(BTN_BUY_VIP)]
     ]

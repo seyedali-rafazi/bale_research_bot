@@ -14,6 +14,7 @@ from services.research import (
     search_article_by_name,
     get_article_data_for_citation
 )
+from services.ai_abstract import get_abstract_from_openalex, analyze_abstract_with_ai
 
 
 async def show_article_results(update: Update, chat_id: str, articles: list, query: str = None, page: int = 1, min_year: int = None, sort_by: str = "relevance"):
@@ -245,5 +246,32 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         set_state(chat_id, None) 
         return
 
+
+ # ====== 6. تحلیل چکیده هوشمند ======
+    if step == 'waiting_smart_abstract_doi':
+        doi_input = text.strip()
+        await update.message.reply_text("⏳ در حال دریافت چکیده مقاله...")
+        
+        abstract_text = get_abstract_from_openalex(doi_input)
+        if not abstract_text:
+            await update.message.reply_text("❌ متاسفانه چکیده‌ای برای این مقاله در پایگاه داده یافت نشد.", reply_markup=get_main_menu_keyboard())
+            set_state(chat_id, None)
+            return
+            
+        await update.message.reply_text("🧠 چکیده با موفقیت دریافت شد. در حال ارسال به هوش مصنوعی برای تحلیل...\n(این مرحله ممکن است ۱ تا ۲ دقیقه طول بکشد، لطفاً صبور باشید)")
+        
+        analysis_result = await analyze_abstract_with_ai(abstract_text)
+        
+        # ثبت یک بار استفاده برای محدودیت روزانه
+        log_usage(chat_id, "smart_abstract")
+        
+        await update.message.reply_text(
+            f"📊 **تحلیل چکیده هوشمند:**\n\n{analysis_result}", 
+            parse_mode='Markdown',
+            reply_markup=get_main_menu_keyboard()
+        )
+        set_state(chat_id, None)
+        return
+    
     if not step:
         await update.message.reply_text("لطفاً از منوی اصلی استفاده کنید.")

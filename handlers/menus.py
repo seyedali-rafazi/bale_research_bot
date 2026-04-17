@@ -5,7 +5,8 @@ from telegram.ext import ContextTypes
 from core.state_manager import set_state
 from core.constants import *
 from core.keyboards import get_article_menu_keyboard
-from core.database import is_vip, get_user_total_usage, get_citation_count
+from core.database import is_vip, get_user_total_usage, get_citation_count, get_user_usage_today
+
 
 async def btn_back_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from .commands import cmd_start
@@ -67,6 +68,26 @@ async def btn_citation_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     set_state(chat_id, 'waiting_for_citation_doi')
     await update.message.reply_text(
         "📑 لطفاً شناسه DOI مقاله مورد نظر را جهت تولید رفرنس ارسال کنید:\n(مثال: `10.1038/nature12373`)", 
+        parse_mode='Markdown',
+        reply_markup=ReplyKeyboardMarkup([[KeyboardButton(BTN_BACK)]], resize_keyboard=True)
+    )
+
+# --- تابع جدید برای دکمه چکیده هوشمند ---
+async def btn_smart_abstract_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.effective_chat.id)
+    
+    # بررسی محدودیت استفاده
+    user_is_vip = is_vip(chat_id)
+    daily_limit = 10 if user_is_vip else 2
+    usage_today = get_user_usage_today(chat_id, "smart_abstract")
+    
+    if usage_today >= daily_limit:
+        await update.message.reply_text(f"❌ شما به سقف مجاز روزانه خود ($ {daily_limit} $ بار) رسیده‌اید.\nبرای افزایش محدودیت می‌توانید حساب خود را VIP کنید.")
+        return
+
+    set_state(chat_id, 'waiting_smart_abstract_doi')
+    await update.message.reply_text(
+        "🧠 لطفاً شناسه DOI مقاله مورد نظر را جهت استخراج و تحلیل چکیده ارسال کنید:\n(مثال: `10.1038/nature12373`)", 
         parse_mode='Markdown',
         reply_markup=ReplyKeyboardMarkup([[KeyboardButton(BTN_BACK)]], resize_keyboard=True)
     )
