@@ -1,42 +1,104 @@
-# services/book_service.py
-
-import requests
 import io
-
+import requests
+from bs4 import BeautifulSoup
+import urllib.parse
 
 def search_books_by_name(query: str, limit: int = 5):
-    url = f"https://openlibrary.org/search.json?q={query}&limit={limit}"
+    """
+    جستجوی واقعی کتاب در سایت LibGen
+    """
+    url = f"http://libgen.is/search.php?req={urllib.parse.quote(query)}&res=25&view=simple&phrase=1&column=def"
+    books = []
+    
     try:
-        response = requests.get(url, timeout=10)
+        # هدر برای اینکه سایت ما را ربات تشخیص ندهد
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        response = requests.get(url, headers=headers, timeout=15)
+        
         if response.status_code == 200:
-            data = response.json()
-            books = []
-            for doc in data.get("docs", []):
-                books.append(
-                    {
-                        "title": doc.get("title", "نامشخص"),
-                        "author": doc.get("author_name", ["نامشخص"])[0],
-                        "year": doc.get("first_publish_year", "نامشخص"),
-                        "key": doc.get("key", ""),
-                    }
-                )
-            return books
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # پیدا کردن جدول نتایج
+            table = soup.find('table', class_='c')
+            if not table:
+                return []
+                
+            rows = table.find_all('tr')[1:] # ردیف اول هدر است
+            
+            for row in rows:
+                cols = row.find_all('td')
+                if len(cols) >= 10:
+                    ext = cols[8].text.strip().lower()
+                    if ext != 'pdf': # فعلا فقط pdf ها را جدا میکنیم
+                        continue
+                        
+                    author = cols[1].text.strip()
+                    # استخراج عنوان و لینک MD5
+                    title_col = cols[2]
+                    title_a = title_col.find_all('a')
+                    title = title_a[0].text.strip() if title_a else "نامشخص"
+                    
+                    year = cols[4].text.strip()
+                    
+                    # پیدا کردن لینک دانلود (MD5)
+                    md5_link = ""
+                    mirrors = cols[9].find_all('a')
+                    if mirrors:
+                        md5_link = mirrors[0].get('href', '')
+
+                    books.append({
+                        'title': title,
+                        'author': author[:50],
+                        'year': year,
+                        'link': md5_link # لینک صفحه دانلود
+                    })
+                    
+                    if len(books) >= limit:
+                        break
     except Exception as e:
-        print(f"Error fetching books: {e}")
-    return []
+        print(f"Error scraping LibGen: {e}")
+        
+    return books
 
-
-async def download_book_pdf(book_title: str) -> io.BytesIO:
+async def download_book_pdf(book_data: dict) -> io.BytesIO:
     """
-    این تابع باید به API دانلود کتاب متصل شود (مثلا LibGen).
-    در حال حاضر یک فایل PDF تستی تولید میکند تا ساختار آپلود کار کند.
+    دریافت فایل واقعی PDF از لینک LibGen
     """
-    # ساخت یک فایل PDF ساده در حافظه (RAM)
-    pdf_content = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>\nendobj\n4 0 obj\n<< /Length 56 >>\nstream\nBT\n/F1 24 Tf\n100 700 Td\n(This is a placeholder PDF file!) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000288 00000 n \ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n393\n%%EOF"
+    try:
+        download_page_url = book_data.get('link')
+        if not download_page_url:
+            return None
 
-    file_stream = io.BytesIO(pdf_content)
-    # اسم فایل که کاربر هنگام دانلود میبیند
-    safe_title = "".join(x for x in book_title if x.isalnum() or x in " _-")
-    file_stream.name = f"{safe_title[:30]}.pdf"
-
-    return file_stream
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        
+        # 1. ورود به صفحه دانلود (library.lol) برای استخراج لینک مستقیم
+        page_resp = requests.get(download_page_url, headers=headers, timeout=15)
+        if page_resp.status_code != 200:
+            return None
+            
+        soup = BeautifulSoup(page_resp.text, 'html.parser')
+        download_link_tag = soup.find('a', string='GET') or soup.select_one('#download h2 a')
+        
+        if not download_link_tag:
+            return None
+            
+        direct_link = download_link_tag.get('href')
+        
+        # 2. دانلود فایل PDF
+        pdf_resp = requests.get(direct_link, headers=headers, timeout=60, stream=True)
+        if pdf_resp.status_code == 200:
+            # بررسی حجم فایل (تلگرام اجازه ارسال فایل بیشتر از 50 مگابایت را به ربات‌های معمولی نمی‌دهد)
+            content_length = pdf_resp.headers.get('content-length')
+            if content_length and int(content_length) > 50 * 1024 * 1024:
+                print("حجم فایل بیشتر از 50 مگابایت است.")
+                return None
+                
+            file_stream = io.BytesIO(pdf_resp.content)
+            safe_title = "".join(x for x in book_data['title'] if x.isalnum() or x in " _-")
+            file_stream.name = f"{safe_title[:30]}.pdf"
+            
+            return file_stream
+            
+    except Exception as e:
+        print(f"Error downloading PDF: {e}")
+        
+    return None

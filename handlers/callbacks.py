@@ -40,7 +40,7 @@ async def inline_buttons_handler(update: Update, context: ContextTypes.DEFAULT_T
         )
 
         # دریافت فایل PDF از سرویس دانلود
-        pdf_file = await download_book_pdf(selected_book["title"])
+        pdf_file = await download_book_pdf(selected_book)
 
         if pdf_file:
             # ثبت یک بار دانلود در دیتابیس
