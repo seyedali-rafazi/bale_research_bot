@@ -23,7 +23,14 @@ async def show_article_results(update: Update, chat_id: str, articles: list, que
     
     for i, art in enumerate(articles):
         oa_status = "🔓 فایل رایگان موجود" if art.get('oa_url') else "🔒 نیاز به سای‌هاب"
-        text_res += f"{i+1}. {art.get('title')} ({art.get('year')})\n👤 {art.get('authors')}\n🔗 DOI: {art.get('doi')}\n📈 استنادات: $ {art.get('citations')} $ | {oa_status}\n\n"
+        text_res += (
+                f"**{i+1}. Title:** {art.get('title')} ({art.get('year')})\n"
+                f"👥 **Authors:** {art.get('authors')}\n"
+                f"🔗 **DOI:** {art.get('doi')}\n"
+                f"📈 **Citation:** $ {art.get('citations')} $\n"
+                f"📄 **PDF:** {oa_status}\n"
+                f"────────────────────\n"
+                    )
         keyboard.append([KeyboardButton(f"📥 دانلود مقاله {i+1}")])
     
     nav_buttons = []
