@@ -10,7 +10,7 @@ def search_books_by_name(query: str, limit: int = 5):
     """
     # لیستی از دامنه‌های فعال لیب‌جن
     mirrors = [
-        "http://libgen.rs",
+        "http://libgen.im",
         "http://libgen.is",
         "http://libgen.st",
         "http://libgen.li",
