@@ -127,19 +127,36 @@ def get_article_data_for_citation(doi_input: str) -> dict:
     return None
 
 async def download_direct_pdf(url: str, doi_or_name: str) -> str:
-    """دانلود مستقیم فایل از لینک Open Access (مثل آرکایو)"""
+    """دانلود مستقیم فایل از لینک Open Access با بررسی نوع فایل"""
     try:
         os.makedirs("downloads", exist_ok=True)
         safe_name = doi_or_name.replace('/', '_').replace('\\', '_')
         file_path = f"downloads/{safe_name}_direct.pdf"
         
-        headers = {'User-Agent': 'Mozilla/5.0'}
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        # برای هندل کردن ریدایرکت‌ها allow_redirects=True به صورت پیشفرض فعال است
         response = requests.get(url, headers=headers, timeout=15, stream=True)
-        if response.status_code == 200:
+        
+        # بررسی اینکه آیا محتوای دریافتی واقعاً PDF است یا خیر
+        content_type = response.headers.get('Content-Type', '').lower()
+        
+        if response.status_code == 200 and 'application/pdf' in content_type:
             with open(file_path, 'wb') as f:
                 for chunk in response.iter_content(1024):
-                    f.write(chunk)
-            return file_path
+                    if chunk:
+                        f.write(chunk)
+            
+            # بررسی حجم فایل جهت اطمینان (فایل‌های کمتر از 10 کیلوبایت معمولاً خرابند)
+            if os.path.exists(file_path) and os.path.getsize(file_path) > 10240: # بزرگتر از $ 10 $ کیلوبایت
+                return file_path
+            else:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                return None
+        else:
+            print(f"لینک مستقیم PDF نبود. Content-Type دریافتی: {content_type}")
+            return None
+            
     except Exception as e:
         print(f"Error downloading direct PDF: {e}")
     return None
