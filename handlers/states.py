@@ -8,8 +8,7 @@ from core.keyboards import get_citation_format_keyboard, get_main_menu_keyboard,
 from core.constants import *
 from core.database import is_vip, get_user_usage_today, log_usage, increment_citation_count
 from services.research import (
-    download_pdf_via_telegram,
-    download_direct_pdf,
+    smart_download_pdf, # تابع جدید برای دانلود هوشمند
     search_article_by_doi, 
     search_article_by_name,
     get_article_data_for_citation
@@ -22,7 +21,8 @@ async def show_article_results(update: Update, chat_id: str, articles: list, que
     keyboard = []
     
     for i, art in enumerate(articles):
-        if art.get('is_oa') or art.get('oa_url'): 
+        # بررسی oa بر اساس کلیدهای جدید (pdf_urls)
+        if art.get('is_oa') or art.get('pdf_urls'): 
              oa_status = "✅ Available (Open Access)"
         else:
             oa_status = "🤖 Need Sci-Hub"
@@ -32,7 +32,7 @@ async def show_article_results(update: Update, chat_id: str, articles: list, que
             f"👥 <b>Authors:</b> {art.get('authors')}\n"
             f"🔗 <b>DOI:</b> {art.get('doi')}\n"
             f"📈 <b>Citation:</b> $ {art.get('citations')} $\n"
-            f"📄 <b>PDF:</b> {oa_status}\n"
+            f"📄 <b>Access:</b> {oa_status}\n"
             f"────────────────────\n"
         )
         keyboard.append([KeyboardButton(f"📥 دانلود مقاله {i+1}")])
@@ -159,7 +159,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                 await show_article_results(update, chat_id, articles, query, page, min_year, sort_by)
             return
 
-        # مدیریت دانلود
+        # مدیریت دانلود با سیستم هوشمند چندلایه
         if text.startswith("📥 دانلود مقاله "):
             try:
                 user_is_vip = is_vip(chat_id)
@@ -178,20 +178,16 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                     return
                     
                 selected_art = articles[index]
-                doi = selected_art.get('doi')
-                oa_url = selected_art.get('oa_url')
+                doi = selected_art.get('doi', 'ندارد')
                 
-                await update.message.reply_text(f"⏳ در حال دریافت فایل... لطفاً منتظر بمانید.")
+                # پیام وضعیت اولیه برای سیستم دانلود هوشمند
+                status_msg = await update.message.reply_text("⏳ در حال پردازش درخواست دانلود...")
                 
-                file_path = None
-                if oa_url:
-                    file_path = await download_direct_pdf(oa_url, doi if (doi and doi != 'ندارد') else f"article_{index}")
-                
-                if not file_path and doi and doi != 'ندارد':
-                    file_path = await download_pdf_via_telegram(doi)
+                # فراخوانی تابع دانلود چندلایه
+                file_path = await smart_download_pdf(selected_art, status_msg)
                 
                 if file_path and os.path.exists(file_path):
-                    await update.message.reply_text("✅ فایل دریافت شد. در حال ارسال برای شما...")
+                    await status_msg.edit_text("✅ فایل با موفقیت دریافت شد. در حال ارسال برای شما...")
                     try:
                         with open(file_path, 'rb') as doc:
                             caption = f"📄 {selected_art.get('title', 'مقاله')}\n🔗 DOI: {doi}"
@@ -201,7 +197,10 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                         if os.path.exists(file_path): 
                             os.remove(file_path) 
                 else:
-                    await update.message.reply_text("❌ متأسفانه فایل PDF این مقاله یافت نشد.")
+                    # تابع smart_download_pdf در صورت پیدا نشدن فایل خودش پیام خطا را جایگزین می‌کند.
+                    # لذا اینجا نیاز به کار اضافه‌ای نیست، مگر اینکه بخواهید کار خاص دیگری بکنید.
+                    pass
+                    
             except ValueError:
                  await update.message.reply_text("❌ فرمت دستور اشتباه است.")
         return
@@ -260,7 +259,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
 
- # ====== 6. تحلیل چکیده هوشمند ======
+    # ====== 6. تحلیل چکیده هوشمند ======
     if step == 'waiting_smart_abstract_doi':
         doi_input = text.strip()
         await update.message.reply_text("⏳ در حال دریافت چکیده مقاله...")
