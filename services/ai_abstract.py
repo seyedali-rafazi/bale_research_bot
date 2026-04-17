@@ -13,6 +13,8 @@ API_ID = os.getenv("API_ID")
 API_HASH =  os.getenv("API_HASH")
 SESSION_NAME =  os.getenv("SESSION_NAME")
 
+download_lock = None
+
 
 def get_abstract_from_openalex(doi_input: str) -> str:
     """استخراج چکیده مقاله از openalex"""
