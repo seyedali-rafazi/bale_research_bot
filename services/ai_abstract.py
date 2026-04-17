@@ -14,6 +14,7 @@ API_HASH =  os.getenv("API_HASH")
 SESSION_NAME =  os.getenv("SESSION_NAME")
 
 download_lock = None
+chatgpt_lock = None 
 
 
 def get_abstract_from_openalex(doi_input: str) -> str:
@@ -39,6 +40,84 @@ def get_abstract_from_openalex(doi_input: str) -> str:
     return None
 
 async def analyze_abstract_with_ai(abstract_text: str) -> str:
+    """ارسال چکیده به ربات هوش مصنوعی با صف‌بندی کاربران"""
+    global chatgpt_lock
+    if chatgpt_lock is None:
+        chatgpt_lock = asyncio.Lock()
+
+    # این بلوک یک صف تشکیل می‌دهد. نفرات بعدی اینجا منتظر می‌مانند تا قفل باز شود
+    async with chatgpt_lock:
+        client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+        await client.connect()
+        
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            return "⚠️ خطا: اکانت تلگرام سرور لاگین نیست."
+
+        try:
+            prompt = f"لطفا این چکیده علمی را به طور کامل تحلیل کن و نکات کلیدی آن را بگو:\n\n{abstract_text}"
+            await client.send_message(CHATGPT_BOT_USERNAME, prompt)
+            
+            # منتظر ماندن برای دریافت پاسخ نهایی
+            for _ in range(20): # حداکثر $ 20 $ بار چک میکند (حدود دو دقیقه)
+                await asyncio.sleep(6) 
+                messages = await client.get_messages(CHATGPT_BOT_USERNAME, limit=2)
+                
+                if not messages:
+                    continue
+                    
+                latest_msg = messages[0]
+                
+                # اگر پیام متنی بود، متعلق به خودمان نبود، استیکر نبود و طول آن بیشتر از 20 کاراکتر بود
+                if latest_msg.text and not latest_msg.out and not latest_msg.sticker:
+                    if len(latest_msg.text.strip()) > 20:
+                        return latest_msg.text
+                    
+            return "❌ زمان انتظار برای تحلیل پایان یافت یا ربات مبدا پاسخی نداد."
+        except Exception as e:
+            print(f"Error in AI abstract analysis: {e}")
+            return "❌ خطا در برقراری ارتباط با هوش مصنوعی."
+        finally:
+            await client.disconnect()
+    """ارسال چکیده به ربات هوش مصنوعی تلگرام و دریافت پاسخ (با چشم پوشی از استیکر و پیام‌های موقت)"""
+    global download_lock
+    if download_lock is None:
+        download_lock = asyncio.Lock()
+
+    async with download_lock:
+        client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+        await client.connect()
+        
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            return "⚠️ خطا: اکانت تلگرام سرور لاگین نیست."
+
+        try:
+            prompt = f"لطفا این چکیده علمی را به طور کامل تحلیل کن و نکات کلیدی آن را بگو:\n\n{abstract_text}"
+            await client.send_message(CHATGPT_BOT_USERNAME, prompt)
+            
+            # منتظر ماندن برای دریافت پاسخ نهایی
+            for _ in range(20): # حداکثر 20 بار چک میکند (حدود دو دقیقه)
+                await asyncio.sleep(6) 
+                messages = await client.get_messages(CHATGPT_BOT_USERNAME, limit=2)
+                
+                if not messages:
+                    continue
+                    
+                latest_msg = messages[0]
+                
+                # اگر پیام متنی بود، متعلق به خودمان نبود، استیکر نبود و طول آن بیشتر از 20 کاراکتر بود (پیام نهایی)
+                if latest_msg.text and not latest_msg.out and not latest_msg.sticker:
+                    if len(latest_msg.text.strip()) > 20:
+                        return latest_msg.text
+                    
+            return "❌ زمان انتظار برای تحلیل پایان یافت یا ربات مبدا پاسخی نداد."
+        except Exception as e:
+            print(f"Error in AI abstract analysis: {e}")
+            return "❌ خطا در برقراری ارتباط با هوش مصنوعی."
+        finally:
+            await client.disconnect()
+
     """ارسال چکیده به ربات هوش مصنوعی تلگرام و دریافت پاسخ (با چشم پوشی از استیکر)"""
     global download_lock
     if download_lock is None:
