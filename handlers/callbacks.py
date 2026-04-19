@@ -5,6 +5,12 @@ from telegram.ext import ContextTypes
 from core.database import is_vip, get_book_download_count, increment_book_download_count
 from core.state_manager import get_state
 from services.book_service import download_book_pdf
+from dotenv import load_dotenv
+import os
+
+# بارگذاری متغیرهای محیطی
+load_dotenv()
+USER_LIMIT_VALUE = os.getenv("USER_LIMIT_VALUE")
 
 
 async def inline_buttons_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -15,7 +21,9 @@ async def inline_buttons_handler(update: Update, context: ContextTypes.DEFAULT_T
     data = query.data
 
     if data.startswith("dlbook_"):
-        if not is_vip(chat_id) and get_book_download_count(chat_id) >= 2:
+        if not is_vip(chat_id) and get_book_download_count(chat_id) >= int(
+            USER_LIMIT_VALUE
+        ):
             await context.bot.send_message(
                 chat_id=chat_id,
                 text="❌ شما از محدودیت دانلود کتاب (کلا $ 2 $ بار برای کاربر عادی) استفاده کرده‌اید. لطفا از منوی اصلی VIP تهیه کنید.",

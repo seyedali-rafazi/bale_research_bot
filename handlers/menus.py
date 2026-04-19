@@ -11,6 +11,13 @@ from core.database import (
     get_citation_count,
     get_user_usage_today,
 )
+from dotenv import load_dotenv
+import os
+
+# بارگذاری متغیرهای محیطی
+load_dotenv()
+USER_LIMIT_VALUE = os.getenv("USER_LIMIT_VALUE")
+VIP_LIMIT_VALUE = os.getenv("VIP_LIMIT_VALUE")
 
 
 async def btn_back_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -126,7 +133,7 @@ async def btn_smart_abstract_req(update: Update, context: ContextTypes.DEFAULT_T
 
     # بررسی محدودیت استفاده
     user_is_vip = is_vip(chat_id)
-    daily_limit = 10 if user_is_vip else 2
+    daily_limit = int(VIP_LIMIT_VALUE) if user_is_vip else int(USER_LIMIT_VALUE)
     usage_today = get_user_usage_today(chat_id, "smart_abstract")
 
     if usage_today >= daily_limit:
@@ -163,7 +170,7 @@ async def btn_translate_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not is_vip(chat_id):
         usage_today = get_user_usage_today(chat_id, "translate_text")
-        if usage_today >= 2:
+        if usage_today >= int(USER_LIMIT_VALUE):
             await update.message.reply_text(
                 "❌ کاربر عادی عزیز، شما از تمام ظرفیت روزانه ($ 2 $ بار) برای ابزار **ترجمه متن** استفاده کرده‌اید.\nبرای استفاده نامحدود، اکانت خود را VIP کنید."
             )
@@ -184,9 +191,9 @@ async def btn_bibtex_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not is_vip(chat_id):
         usage_today = get_user_usage_today(chat_id, "generate_bibtex")
-        if usage_today >= 2:
+        if usage_today >= int(USER_LIMIT_VALUE):
             await update.message.reply_text(
-                "❌ کاربر عادی عزیز، شما از تمام ظرفیت روزانه ($ 2 $ بار) برای ابزار **تولید BibTeX** استفاده کرده‌اید.\nبرای استفاده نامحدود، اکانت خود را VIP کنید."
+                "❌ کاربر عادی عزیز، شما از تمام ظرفیت روزانه ($ }{USER_LIMIT_VALUE} $ بار) برای ابزار **تولید BibTeX** استفاده کرده‌اید.\nبرای استفاده نامحدود، اکانت خود را VIP کنید."
             )
             return
 

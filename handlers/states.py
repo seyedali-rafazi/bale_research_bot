@@ -9,7 +9,6 @@ from core.keyboards import (
     get_main_menu_keyboard,
     get_year_filter_keyboard,
     get_sort_filter_keyboard,
-    get_books_inline_keyboard,
 )
 from core.constants import *
 from core.database import (
@@ -26,7 +25,12 @@ from services.research import (
 )
 from services.ai_abstract import get_abstract_from_openalex, analyze_abstract_with_ai
 from services.extra_tools import translate_text_with_ai, get_bibtex_from_openalex
-from services.book_service import search_books_by_name
+from dotenv import load_dotenv
+
+# بارگذاری متغیرهای محیطی
+load_dotenv()
+USER_LIMIT_VALUE = os.getenv("USER_LIMIT_VALUE")
+VIP_LIMIT_VALUE = os.getenv("VIP_LIMIT_VALUE")
 
 
 async def show_article_results(
@@ -216,7 +220,9 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         if text.startswith("📥 دانلود مقاله "):
             try:
                 user_is_vip = is_vip(chat_id)
-                daily_limit = 20 if user_is_vip else 2
+                daily_limit = (
+                    int(VIP_LIMIT_VALUE) if user_is_vip else int(USER_LIMIT_VALUE)
+                )
                 usage_today = get_user_usage_today(chat_id, "download_article")
 
                 if usage_today >= daily_limit:
