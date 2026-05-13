@@ -7,13 +7,23 @@ import asyncio
 from telethon import TelegramClient
 from dotenv import load_dotenv
 
-load_dotenv() 
+load_dotenv()
 API_ID = os.getenv("API_ID")
-API_HASH =  os.getenv("API_HASH")
-SESSION_NAME =  os.getenv("SESSION_NAME")
+API_HASH = os.getenv("API_HASH")
+SESSION_NAME = os.getenv("SESSION_NAME")
 SCIHUB_BOT_USERNAME = os.getenv("SCIHUB_BOT_USERNAME")
 
 download_lock = None
+
+
+def _validate_scihub_config():
+    if not SCIHUB_BOT_USERNAME:
+        print("⚠️ SCIHUB_BOT_USERNAME is not configured. Sci-Hub Telegram fetch will be skipped.")
+        return False
+    if not API_ID or not API_HASH or not SESSION_NAME:
+        print("⚠️ Telethon credentials are incomplete. Sci-Hub Telegram fetch will be skipped.")
+        return False
+    return True
 
 def clean_doi(doi: str) -> str:
     if not doi: return ""
@@ -148,6 +158,9 @@ async def download_pdf_via_telegram(doi_input: str) -> str:
     if not doi: return None
 
     async with download_lock:
+        if not _validate_scihub_config():
+            return None
+
         client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
         await client.connect()
         
@@ -215,9 +228,16 @@ async def smart_download_pdf(article: dict, status_message) -> str:
         if file_path: return file_path
 
     # 4. تلاش چهارم: Sci-Hub
+    if not _validate_scihub_config():
+        await status_message.edit_text(
+            "⚠️ تنظیمات Sci-Hub برای تلگرام کامل نیست؛ به همین دلیل این مرحله نادیده گرفته شد."
+        )
+        return None
+
     await status_message.edit_text("🤖 تلاش چهارم: درخواست از دیتابیس Sci-Hub (ممکن است کمی طول بکشد)...")
     file_path = await download_pdf_via_telegram(doi)
-    if file_path: return file_path
+    if file_path:
+        return file_path
 
     # 5. پایان تلاش‌ها
     await status_message.edit_text("❌ متاسفانه فایل PDF مستقیم این مقاله در هیچ‌یک از ۴ منبع (OpenAlex, Unpaywall, Semantic Scholar, Sci-Hub) یافت نشد.")

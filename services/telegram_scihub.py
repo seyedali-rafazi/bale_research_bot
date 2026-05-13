@@ -5,19 +5,32 @@ import asyncio
 from telethon import TelegramClient, events
 from dotenv import load_dotenv
 
-load_dotenv() 
+load_dotenv()
 
 API_ID = os.getenv("API_ID")
-API_HASH =  os.getenv("API_HASH")
-SESSION_NAME =  os.getenv("SESSION_NAME")
+API_HASH = os.getenv("API_HASH")
+SESSION_NAME = os.getenv("SESSION_NAME")
 SCIHUB_BOT_USERNAME = os.getenv("SCIHUB_BOT_USERNAME")
 
 # آیدی ربات سای‌هاب در تلگرام (می‌توانید ربات‌های جایگزین هم تست کنید)
+
+
+def _validate_scihub_config():
+    if not SCIHUB_BOT_USERNAME:
+        print("⚠️ SCIHUB_BOT_USERNAME is not configured in .env.")
+        return False
+    if not API_ID or not API_HASH or not SESSION_NAME:
+        print("⚠️ Telethon credentials are incomplete in .env.")
+        return False
+    return True
 
 async def download_pdf_via_telegram(doi: str) -> str:
     """
     دی‌او‌آی را به ربات تلگرام می‌فرستد و فایل دانلود شده را برمی‌گرداند
     """
+    if not _validate_scihub_config():
+        return None
+
     client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
     await client.start() # در اولین اجرا، شماره موبایل و کد تایید می‌خواهد
     
