@@ -73,7 +73,7 @@ async def show_article_results(
     keyboard.append([KeyboardButton(BTN_BACK)])
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-    set_state(
+    await set_state(
         chat_id,
         "waiting_article_selection",
         articles=articles,
@@ -91,7 +91,7 @@ async def show_article_results(
 async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     chat_id = str(update.effective_chat.id)
-    state_data = get_state(chat_id)
+    state_data = await get_state(chat_id)
     step = state_data.get("step")
 
     if text in ["0", "لغو", "شروع", "بازگشت", BTN_BACK]:
@@ -126,7 +126,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # ====== 2. پردازش دریافت نام مقاله و پرسش سال ======
     if step == "waiting_article_name":
-        set_state(chat_id, "waiting_article_year", query=text)
+        await set_state(chat_id, "waiting_article_year", query=text)
         await update.message.reply_text(
             "📅 آیا می‌خواهید جستجو محدود به سال خاصی باشد؟",
             reply_markup=get_year_filter_keyboard(),
@@ -145,7 +145,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         elif text == BTN_YEAR_2015:
             min_year = 2015
 
-        set_state(chat_id, "waiting_article_sort", query=query, min_year=min_year)
+        await set_state(chat_id, "waiting_article_sort", query=query, min_year=min_year)
         await update.message.reply_text(
             "🗂 نحوه نمایش نتایج را انتخاب کنید:\n\n"
             "🎯 **مرتبط‌ترین:** مقالاتی که اسمشان دقیقاً مشابه متن شماست.\n"
@@ -219,11 +219,11 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         if text.startswith("📥 دانلود مقاله "):
             try:
-                user_is_vip = is_vip(chat_id)
+                user_is_vip = await is_vip(chat_id)
                 daily_limit = (
                     int(VIP_LIMIT_VALUE) if user_is_vip else int(USER_LIMIT_VALUE)
                 )
-                usage_today = get_user_usage_today(chat_id, "download_article")
+                usage_today = await get_user_usage_today(chat_id, "download_article")
 
                 if usage_today >= daily_limit:
                     await update.message.reply_text(
@@ -263,7 +263,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                             await context.bot.send_document(
                                 chat_id=chat_id, document=doc, caption=caption
                             )
-                        log_usage(chat_id, "download_article")
+                        await log_usage(chat_id, "download_article")
                     finally:
                         if os.path.exists(file_path):
                             os.remove(file_path)
@@ -282,7 +282,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text("❌ مقاله‌ای با این DOI یافت نشد.")
             return
 
-        set_state(chat_id, "waiting_for_citation_format", article=article_data)
+        await set_state(chat_id, "waiting_for_citation_format", article=article_data)
         await update.message.reply_text(
             f"✅ مقاله یافت شد:\n*{article_data['title']}*\n\nلطفاً فرمت رفرنس‌دهی را انتخاب کنید:",
             reply_markup=get_citation_format_keyboard(),
@@ -294,7 +294,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         article = state_data.get("article")
         if not article:
             await update.message.reply_text("❌ خطا در بازیابی اطلاعات.")
-            set_state(chat_id, None)
+            await set_state(chat_id, None)
             return
 
         authors = (
@@ -323,14 +323,14 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
 
-        increment_citation_count(chat_id)
+        await increment_citation_count(chat_id)
 
         await update.message.reply_text(
             f"📑 **رفرنس تولید شده ({text}):**\n\n`{citation_text}`",
             parse_mode="Markdown",
             reply_markup=get_main_menu_keyboard(),
         )
-        set_state(chat_id, None)
+        await set_state(chat_id, None)
         return
 
     # ====== 6. تحلیل چکیده هوشمند ======
@@ -344,7 +344,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                 "❌ متاسفانه چکیده‌ای برای این مقاله در پایگاه داده یافت نشد.",
                 reply_markup=get_main_menu_keyboard(),
             )
-            set_state(chat_id, None)
+            await set_state(chat_id, None)
             return
 
         await update.message.reply_text(
@@ -352,14 +352,14 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
         analysis_result = await analyze_abstract_with_ai(abstract_text)
-        log_usage(chat_id, "smart_abstract")
+        await log_usage(chat_id, "smart_abstract")
 
         await update.message.reply_text(
             f"📊 **تحلیل چکیده هوشمند:**\n\n{analysis_result}",
             parse_mode="Markdown",
             reply_markup=get_main_menu_keyboard(),
         )
-        set_state(chat_id, None)
+        await set_state(chat_id, None)
         return
 
     # ====== 7. ترجمه متن دلخواه ======
@@ -376,14 +376,14 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
 
         translated_text = await translate_text_with_ai(english_text)
-        log_usage(chat_id, "translate_text")
+        await log_usage(chat_id, "translate_text")
 
         await update.message.reply_text(
             f"🇮🇷 **ترجمه متن شما:**\n\n{translated_text}",
             parse_mode="Markdown",
             reply_markup=get_main_menu_keyboard(),
         )
-        set_state(chat_id, None)
+        await set_state(chat_id, None)
         return
 
     # ====== 8. تولید رفرنس BibTeX ======
@@ -399,7 +399,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
 
-        log_usage(chat_id, "generate_bibtex")
+        await log_usage(chat_id, "generate_bibtex")
 
         await update.message.reply_text(
             f"📜 <b>رفرنس BibTeX شما آماده است:</b>\n\n"
@@ -408,7 +408,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="HTML",
             reply_markup=get_main_menu_keyboard(),
         )
-        set_state(chat_id, None)
+        await set_state(chat_id, None)
         return
 
     # ====== 9.دانلود کتاب   ======
@@ -423,7 +423,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             await update.message.reply_text("❌ کتابی با این نام یافت نشد.")
             return
 
-        set_state(chat_id, "waiting_book_download", books=books)
+        await set_state(chat_id, "waiting_book_download", books=books)
 
         # ساخت لیست متنی از کتاب‌ها
         msg_text = "📚 **نتایج یافت شده:**\n\n"

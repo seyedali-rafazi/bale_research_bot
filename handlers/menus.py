@@ -41,9 +41,9 @@ async def btn_article_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def btn_user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
-    user_is_vip = is_vip(chat_id)
+    user_is_vip = await is_vip(chat_id)
     status_text = "VIP 🌟" if user_is_vip else "عادی 👤"
-    total_usage = get_user_total_usage(chat_id)
+    total_usage = await get_user_total_usage(chat_id)
 
     text = (
         f"👤 **اطلاعات حساب کاربری شما:**\n\n"
@@ -56,7 +56,7 @@ async def btn_user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def btn_support_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
-    set_state(chat_id, "waiting_support_message")
+    await set_state(chat_id, "waiting_support_message")
     await update.message.reply_text(
         "🎧 لطفاً پیام خود را برای پشتیبانی بنویسید تا به ادمین ارسال شود:",
         reply_markup=ReplyKeyboardMarkup(
@@ -67,7 +67,7 @@ async def btn_support_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def btn_search_doi_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
-    set_state(chat_id, "waiting_article_doi")
+    await set_state(chat_id, "waiting_article_doi")
 
     text = (
         "🔍 **لطفاً شناسه DOI مقاله مورد نظر را بفرستید.**\n\n"
@@ -89,7 +89,7 @@ async def btn_search_doi_req(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def btn_search_name_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
-    set_state(chat_id, "waiting_article_name")
+    await set_state(chat_id, "waiting_article_name")
     await update.message.reply_text(
         "🔎 لطفاً نام مقاله یا کلمات کلیدی آن را وارد کنید:",
         reply_markup=ReplyKeyboardMarkup(
@@ -103,13 +103,13 @@ async def btn_citation_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
 
     # بررسی محدودیت استفاده (کاربر عادی حداکثر 3 بار)
-    if not is_vip(chat_id) and get_citation_count(chat_id) >= 3:
+    if not await is_vip(chat_id) and await get_citation_count(chat_id) >= 3:
         await update.message.reply_text(
             "❌ شما از تمام ظرفیت ($ 3 $ رفرنس) اکانت عادی خود استفاده کرده‌اید.\nبرای استفاده نامحدود، از طریق منوی اصلی حساب خود را VIP کنید."
         )
         return
 
-    set_state(chat_id, "waiting_for_citation_doi")
+    await set_state(chat_id, "waiting_for_citation_doi")
     text = (
         "📑 **لطفاً شناسه DOI مقاله مورد نظر را جهت تولید رفرنس ارسال کنید:**\n\n"
         "💡 (می‌توانید هم لینک کامل و هم شناسه خالی را بفرستید)\n"
@@ -132,9 +132,9 @@ async def btn_smart_abstract_req(update: Update, context: ContextTypes.DEFAULT_T
     chat_id = str(update.effective_chat.id)
 
     # بررسی محدودیت استفاده
-    user_is_vip = is_vip(chat_id)
+    user_is_vip = await is_vip(chat_id)
     daily_limit = int(VIP_LIMIT_VALUE) if user_is_vip else int(USER_LIMIT_VALUE)
-    usage_today = get_user_usage_today(chat_id, "smart_abstract")
+    usage_today = await get_user_usage_today(chat_id, "smart_abstract")
 
     if usage_today >= daily_limit:
         await update.message.reply_text(
@@ -149,7 +149,7 @@ async def btn_smart_abstract_req(update: Update, context: ContextTypes.DEFAULT_T
 
         return
 
-    set_state(chat_id, "waiting_smart_abstract_doi")
+    await set_state(chat_id, "waiting_smart_abstract_doi")
 
     message_text = (
         "🧠 **به بخش چکیده هوشمند خوش آمدید!**\n\n"
@@ -175,15 +175,15 @@ async def btn_smart_abstract_req(update: Update, context: ContextTypes.DEFAULT_T
 async def btn_translate_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
 
-    if not is_vip(chat_id):
-        usage_today = get_user_usage_today(chat_id, "translate_text")
+    if not await is_vip(chat_id):
+        usage_today = await get_user_usage_today(chat_id, "translate_text")
         if usage_today >= int(USER_LIMIT_VALUE):
             await update.message.reply_text(
                 "❌ کاربر عادی عزیز، شما از تمام ظرفیت روزانه ($ 2 $ بار) برای ابزار **ترجمه متن** استفاده کرده‌اید.\nبرای استفاده نامحدود، اکانت خود را VIP کنید."
             )
             return
 
-    set_state(chat_id, "waiting_translate_text")
+    await set_state(chat_id, "waiting_translate_text")
     await update.message.reply_text(
         "🇮🇷 **به بخش ترجمه متون علمی خوش آمدید!**\n\n"
         "لطفاً متن انگلیسی مورد نظر خود را بفرستید تا با دقت بالا به فارسی ترجمه شود:",
@@ -196,15 +196,15 @@ async def btn_translate_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def btn_bibtex_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
 
-    if not is_vip(chat_id):
-        usage_today = get_user_usage_today(chat_id, "generate_bibtex")
+    if not await is_vip(chat_id):
+        usage_today = await get_user_usage_today(chat_id, "generate_bibtex")
         if usage_today >= int(USER_LIMIT_VALUE):
             await update.message.reply_text(
-                "❌ کاربر عادی عزیز، شما از تمام ظرفیت روزانه ($ }{USER_LIMIT_VALUE} $ بار) برای ابزار **تولید BibTeX** استفاده کرده‌اید.\nبرای استفاده نامحدود، اکانت خود را VIP کنید."
+                f"❌ کاربر عادی عزیز، شما از تمام ظرفیت روزانه ($ {USER_LIMIT_VALUE} $) برای ابزار **تولید BibTeX** استفاده کرده‌اید.\nبرای استفاده نامحدود، اکانت خود را VIP کنید."
             )
             return
 
-    set_state(chat_id, "waiting_bibtex_doi")
+    await set_state(chat_id, "waiting_bibtex_doi")
     await update.message.reply_text(
         "📜 **به بخش تولید فایل BibTeX خوش آمدید!**\n\n"
         "لطفاً شناسه DOI مقاله مورد نظر را ارسال کنید (مثال: `10.1038/nature12373`):",
@@ -217,7 +217,7 @@ async def btn_bibtex_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def btn_book_search_req(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
-    set_state(chat_id, "waiting_book_name")
+    await set_state(chat_id, "waiting_book_name")
     await update.message.reply_text(
         "📕 لطفاً نام کتاب مورد نظر خود را (ترجیحاً به انگلیسی) ارسال کنید:",
         reply_markup=ReplyKeyboardMarkup(

@@ -21,7 +21,7 @@ async def inline_buttons_handler(update: Update, context: ContextTypes.DEFAULT_T
     data = query.data
 
     if data.startswith("dlbook_"):
-        if not is_vip(chat_id) and get_book_download_count(chat_id) >= int(
+        if not await is_vip(chat_id) and await get_book_download_count(chat_id) >= int(
             USER_LIMIT_VALUE
         ):
             await context.bot.send_message(
@@ -31,7 +31,7 @@ async def inline_buttons_handler(update: Update, context: ContextTypes.DEFAULT_T
             return
 
         index = int(data.split("_")[1])
-        state_data = get_state(chat_id)
+        state_data = await get_state(chat_id)
         books = state_data.get("books", [])
 
         if index >= len(books):
@@ -52,7 +52,7 @@ async def inline_buttons_handler(update: Update, context: ContextTypes.DEFAULT_T
 
         if pdf_file:
             # ثبت یک بار دانلود در دیتابیس
-            increment_book_download_count(chat_id)
+            await increment_book_download_count(chat_id)
 
             caption = f"📕 **عنوان:** {selected_book['title']}\n👤 **نویسنده:** {selected_book['author']}"
 
