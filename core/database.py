@@ -1,3 +1,5 @@
+# core/database.py
+
 import os
 from datetime import datetime, timezone
 from typing import Optional
@@ -11,8 +13,8 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://bale_bot:secret@localhost:5432/bale_bot",
 )
-DB_MIN_POOL = int(os.getenv("DB_MIN_POOL", 2))
-DB_MAX_POOL = int(os.getenv("DB_MAX_POOL", 20))
+DB_MIN_POOL = int(os.getenv("DB_MIN_POOL", 10))
+DB_MAX_POOL = int(os.getenv("DB_MAX_POOL", 50))
 
 db_pool: Optional[asyncpg.pool.Pool] = None
 

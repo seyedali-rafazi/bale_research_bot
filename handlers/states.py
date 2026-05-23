@@ -1,7 +1,9 @@
 # handlers/states.py
 
+import asyncio
 import os
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import InputFile
 from telegram.ext import ContextTypes
 from core.state_manager import get_state, set_state
 from core.keyboards import (
@@ -117,7 +119,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
     # ====== 1. پردازش دریافت DOI ======
     if step == "waiting_article_doi":
         await update.message.reply_text("⏳ در حال بررسی شناسه DOI...")
-        articles = search_article_by_doi(text)
+        articles = await search_article_by_doi(text)
         if not articles:
             await update.message.reply_text("❌ مقاله‌ای یافت نشد.")
             return
@@ -165,7 +167,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             sort_by = "citation"
 
         await update.message.reply_text("⏳ در حال جستجوی مقالات...")
-        articles = search_article_by_name(
+        articles = await search_article_by_name(
             query, page=1, min_year=min_year, sort_by=sort_by
         )
         if not articles:
@@ -194,7 +196,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         if text == BTN_NEXT_PAGE:
             page += 1
             await update.message.reply_text(f"⏳ در حال دریافت صفحه $ {page} $...")
-            articles = search_article_by_name(
+            articles = await search_article_by_name(
                 query, page=page, min_year=min_year, sort_by=sort_by
             )
             if not articles:
@@ -209,7 +211,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             if page > 1:
                 page -= 1
                 await update.message.reply_text(f"⏳ در حال دریافت صفحه $ {page} $...")
-                articles = search_article_by_name(
+                articles = await search_article_by_name(
                     query, page=page, min_year=min_year, sort_by=sort_by
                 )
                 await show_article_results(
@@ -258,15 +260,21 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
                         "✅ فایل با موفقیت دریافت شد. در حال ارسال برای شما..."
                     )
                     try:
-                        with open(file_path, "rb") as doc:
-                            caption = f"📄 {selected_art.get('title', 'مقاله')}\n🔗 DOI: {doi}"
-                            await context.bot.send_document(
-                                chat_id=chat_id, document=doc, caption=caption
-                            )
+                        def _read_pdf(path):
+                            with open(path, "rb") as f:
+                                return f.read()
+
+                        pdf_bytes = await asyncio.to_thread(_read_pdf, file_path)
+                        caption = f"📄 {selected_art.get('title', 'مقاله')}\n🔗 DOI: {doi}"
+                        await context.bot.send_document(
+                            chat_id=chat_id,
+                            document=InputFile(pdf_bytes, filename=os.path.basename(file_path)),
+                            caption=caption,
+                        )
                         await log_usage(chat_id, "download_article")
                     finally:
                         if os.path.exists(file_path):
-                            os.remove(file_path)
+                            await asyncio.to_thread(os.remove, file_path)
 
             except ValueError:
                 await update.message.reply_text("❌ فرمت دستور اشتباه است.")
@@ -277,7 +285,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         doi_input = text.strip()
         await update.message.reply_text("⏳ در حال دریافت اطلاعات مقاله...")
 
-        article_data = get_article_data_for_citation(doi_input)
+        article_data = await get_article_data_for_citation(doi_input)
         if not article_data:
             await update.message.reply_text("❌ مقاله‌ای با این DOI یافت نشد.")
             return
@@ -338,7 +346,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         doi_input = text.strip()
         await update.message.reply_text("⏳ در حال دریافت چکیده مقاله...")
 
-        abstract_text = get_abstract_from_openalex(doi_input)
+        abstract_text = await get_abstract_from_openalex(doi_input)
         if not abstract_text:
             await update.message.reply_text(
                 "❌ متاسفانه چکیده‌ای برای این مقاله در پایگاه داده یافت نشد.",
@@ -391,7 +399,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         doi_input = text.strip()
         await update.message.reply_text("⏳ در حال پردازش اطلاعات مقاله...")
 
-        bibtex_result = get_bibtex_from_openalex(doi_input)
+        bibtex_result = await get_bibtex_from_openalex(doi_input)
 
         if not bibtex_result:
             await update.message.reply_text(
@@ -418,7 +426,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         from services.book_service import search_books_by_name
 
-        books = search_books_by_name(book_name)
+        books = await search_books_by_name(book_name)
         if not books:
             await update.message.reply_text("❌ کتابی با این نام یافت نشد.")
             return
