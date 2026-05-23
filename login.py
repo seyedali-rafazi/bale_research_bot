@@ -5,7 +5,7 @@ from telethon.errors import SessionPasswordNeededError
 
 API_ID = 6
 API_HASH = "eb06d4abfb49dc3eeb1aeb98ae0f581e"
-SESSION_NAME = "ai-session-name"
+SESSION_NAME = "research-session"
 proxy_settings = ("socks5", "127.0.0.1", 10808)
 
 

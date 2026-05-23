@@ -1,13 +1,17 @@
 # handlers/__init__.py
 
 import re
+from telegram import Update
 from telegram.ext import (
     MessageHandler,
     CommandHandler,
     PreCheckoutQueryHandler,
+    CallbackQueryHandler,
+    TypeHandler,
     filters,
 )
 from core.constants import *
+from core.channel_guard import channel_membership_guard
 from .commands import cmd_start
 from .menus import (
     btn_back_action,
@@ -24,12 +28,20 @@ from .menus import (
 from .states import process_state_input
 from core.admin import cmd_stats, cmd_setvip
 from .payment import btn_buy_vip, precheckout_callback, successful_payment_callback
-from telegram.ext import CallbackQueryHandler
 from .menus import btn_book_search_req
 from .callbacks import inline_buttons_handler
+from .channel import check_channel_callback
 
 
 def register_all_handlers(application):
+    application.add_handler(
+        TypeHandler(Update, channel_membership_guard), group=-1
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            check_channel_callback, pattern=f"^{re.escape(CB_CHECK_CHANNEL)}$"
+        )
+    )
     application.add_handler(CommandHandler("stats", cmd_stats))
     application.add_handler(CommandHandler("setvip", cmd_setvip))
     application.add_handler(CommandHandler("start", cmd_start))

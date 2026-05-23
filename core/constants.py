@@ -31,3 +31,5 @@ BTN_TRANSLATE = "ترجمه  انگلیسی"
 BTN_BIBTEX = "📜 تولید BibTeX"
 BTN_BOOK_SEARCH = "📕 جستجو و دانلود کتاب"
 
+CB_CHECK_CHANNEL = "check_channel_join"
+

@@ -26,7 +26,8 @@ from services.research import (
     get_article_data_for_citation,
 )
 from services.ai_abstract import get_abstract_from_openalex, analyze_abstract_with_ai
-from services.extra_tools import translate_text_with_ai, get_bibtex_from_openalex
+from services.extra_tools import get_bibtex_from_openalex
+from services.translate import translate_text
 from dotenv import load_dotenv
 
 # بارگذاری متغیرهای محیطی
@@ -383,7 +384,7 @@ async def process_state_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             "⏳ در حال ترجمه متن... (این فرآیند ممکن است چند ثانیه زمان ببرد)"
         )
 
-        translated_text = await translate_text_with_ai(english_text)
+        translated_text = await translate_text(english_text)
         await log_usage(chat_id, "translate_text")
 
         await update.message.reply_text(
